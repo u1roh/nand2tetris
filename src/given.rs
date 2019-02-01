@@ -3,6 +3,20 @@ pub fn nand(a: bool, b: bool) -> bool {
     !(a && b)
 }
 
+pub struct Flipflop { bit: bool }
+
+impl Flipflop {
+    pub fn new() -> Self {
+        Flipflop{ bit: false }
+    }
+    pub fn out(&self) -> bool {
+        self.bit
+    }
+    pub fn clock(&mut self, a: bool) {
+        self.bit = a;
+    }
+}
+
 
 // 16bit word
 pub type Word = [bool; 16];
@@ -29,5 +43,21 @@ mod tests {
         assert_eq!(nand(true, false), true);
         assert_eq!(nand(false, true), true);
         assert_eq!(nand(true, true), false);
+    }
+
+    #[test]
+    fn test_flipflop() {
+        let mut flipflop = Flipflop::new();
+        assert_eq!(flipflop.out(), false);
+        flipflop.clock(true);
+        assert_eq!(flipflop.out(), true);
+        flipflop.clock(true);
+        assert_eq!(flipflop.out(), true);
+        flipflop.clock(false);
+        assert_eq!(flipflop.out(), false);
+        flipflop.clock(true);
+        assert_eq!(flipflop.out(), true);
+        flipflop.clock(false);
+        assert_eq!(flipflop.out(), false);
     }
 }
