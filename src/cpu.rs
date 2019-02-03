@@ -36,27 +36,20 @@ impl Cpu {
     pub fn new() -> Self {
         Self { A: Register::new(), D: Register::new(), PC: Counter::new() }
     }
-    fn alu_out(&self, input: CpuInput) -> AluOutput {
+    fn alu(&self, inM: Word, instruction: Word) -> AluOutput {
         let x = self.D.out();   // x = D
-        let y = mux16(self.A.out(), input.inM, input.instruction[12]);  // y = A or M
+        let y = mux16(self.A.out(), inM, instruction[12]);  // y = A or M
         alu(x, y,
-            input.instruction[11],    // zx
-            input.instruction[10],    // nx
-            input.instruction[ 9],    // zy
-            input.instruction[ 8],    // ny
-            input.instruction[ 7],    // f
-            input.instruction[ 6])    // no
+            instruction[11],    // zx
+            instruction[10],    // nx
+            instruction[ 9],    // zy
+            instruction[ 8],    // ny
+            instruction[ 7],    // f
+            instruction[ 6])    // no
     }
-    pub fn out(&self, input: CpuInput) -> CpuOutput {
-        CpuOutput{
-            outM: self.alu_out(input).out,
-            writeM: input.instruction[3],
-            addressM: self.A.out(),
-            pc: self.PC.out()
-        }
-    }
-    fn decode(&self, instruction: Word, alu_out: AluOutput) -> ControlBits {
+    fn decode(&self, inM: Word, instruction: Word) -> ControlBits {
         let is_c_instruction = instruction[15];
+        let alu_out = self.alu(inM, instruction);
         ControlBits {
             in_a: mux16(instruction, alu_out.out, is_c_instruction),
             in_d: alu_out.out,
@@ -69,8 +62,16 @@ impl Cpu {
                 and(instruction[2], alu_out.ng))
         }
     }
+    pub fn out(&self, input: CpuInput) -> CpuOutput {
+        CpuOutput{
+            outM: self.alu(input.inM, input.instruction).out,
+            writeM: input.instruction[3],
+            addressM: self.A.out(),
+            pc: self.PC.out()
+        }
+    }
     pub fn clock(&mut self, input: CpuInput) {
-        let c = self.decode(input.instruction, self.alu_out(input));
+        let c = self.decode(input.inM, input.instruction);
         self.A.clock(c.in_a, c.load_a);
         self.D.clock(c.in_d, c.load_d);
         self.PC.clock(c.in_pc, not(c.jump), c.jump, input.reset);
