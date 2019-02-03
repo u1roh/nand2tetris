@@ -305,7 +305,7 @@ mod tests {
     fn test_RAM16K() {
         let mut ram = RAM16K::new();
         let values = [72, 45, 29];
-        for i in 0 .. 14 {
+        for i in 9 .. 14 {
             let mut address = [false; 14];
             address[i] = true;
             assert_eq!(word2int(ram.out(address)), 0);

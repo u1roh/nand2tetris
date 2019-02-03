@@ -2,13 +2,13 @@ use crate::given::*;
 use crate::gate::*;
 use crate::adder;
 
-pub struct AluResult {
+pub struct AluOutput {
     pub out: Word,  // 16-bit output
     pub zr: bool,   // True iff out = 0
     pub ng: bool,   // True iff out < 0
 }
 
-fn alu(
+pub fn alu(
     x: Word, y: Word,   // Two 16-bit data inputs
     zx: bool,   // Zero the x input
     nx: bool,   // Negate the x input
@@ -16,7 +16,7 @@ fn alu(
     ny: bool,   // Negate the y input
     f: bool,    // Function code: true for Add, false for And
     no: bool    // Negate the out output
-) -> AluResult {
+) -> AluOutput {
     let x = mux16(x, [false; 16], zx);
     let x = mux16(x, not16(x), nx);
     let y = mux16(y, [false; 16], zy);
@@ -27,7 +27,7 @@ fn alu(
         or8way([out[0], out[1], out[2], out[3], out[4], out[5], out[6], out[7]]),
         or8way([out[8], out[9], out[10], out[11], out[12], out[13], out[14], out[15]])));
     let ng = out[15];
-    AluResult{ out: out, zr: zr, ng: ng }
+    AluOutput{ out: out, zr: zr, ng: ng }
 }
 
 

@@ -51,7 +51,7 @@ pub fn mux16(a: Word, b: Word, sel: bool) -> Word {
 }
 
 pub fn or8way(a: [bool; 8]) -> bool {
-    or(or(or(or(or(or(or(a[0], a[1]), a[2]), a[3]), a[4]), a[5]), a[6]), a[7])
+    or(or(or(a[0], a[1]), or(a[2], a[3])), or(or(a[4], a[5]), or(a[6], a[7])))
 }
 
 pub fn mux4way16(a: Word, b: Word, c: Word, d: Word, sel: [bool; 2]) -> Word {
