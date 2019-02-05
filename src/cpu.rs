@@ -62,6 +62,12 @@ impl Cpu {
                 and(instruction[2], alu_out.ng))
         }
     }
+    pub fn addressM(&self) -> Word {
+        self.A.out()
+    }
+    pub fn pc(&self) -> Word {
+        self.PC.out()
+    }
     pub fn out(&self, input: CpuInput) -> CpuOutput {
         CpuOutput{
             outM: self.alu(input.inM, input.instruction).out,
