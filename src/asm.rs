@@ -21,9 +21,11 @@ pub enum Computation {
     DOrX(bool),         // D | A or D | M
 }
 
-pub static dest_A: u8 = 0b001;
-pub static dest_D: u8 = 0b010;
-pub static dest_M: u8 = 0b100;
+pub mod dest {
+    pub static A: u8 = 0b100;
+    pub static D: u8 = 0b010;
+    pub static M: u8 = 0b001;
+}
 
 #[derive(Clone, Copy)]
 pub enum Jump {
@@ -45,56 +47,53 @@ pub enum Instruction {
 pub use Instruction::*;
 
 impl Instruction {
-    pub fn to_bits(&self) -> [bool; 16] {
+    pub fn encode(&self) -> i16 {
         match self {
             AInstruction(address) => {
                 assert!(*address >= 0); // A-instruction's MSB = 0
-                int2word(*address)
+                *address
             },
             CInstruction(comp, dest, jump) => {
                 use Computation::*;
-                let mut bits = [false; 16];
-                bits[15] = true;    // C-instruction's MSB = 1
-                let (comp, a) =
-                    match comp {
-                        Zero        => ([1, 0, 1, 0, 1, 0], false),
-                        One         => ([1, 1, 1, 1, 1, 1], false),
-                        MinusOne    => ([1, 1, 1, 0, 1, 0], false),
-                        D           => ([0, 0, 1, 1, 0, 0], false),
-                        X(a)        => ([1, 1, 0, 0, 0, 0], *a),
-                        NotD        => ([0, 0, 1, 1, 0, 1], false),
-                        NotX(a)     => ([1, 1, 0, 0, 0, 1], *a),
-                        MinusD      => ([0, 0, 1, 1, 1, 1], false),
-                        MinusX(a)   => ([1, 1, 0, 0, 1, 1], *a),
-                        DPlusOne    => ([0, 1, 1, 1, 1, 1], false),
-                        XPlusOne(a) => ([1, 1, 0, 1, 1, 1], *a),
-                        DMinusOne   => ([0, 0, 1, 1, 1, 0], false),
-                        XMinusOne(a)=> ([1, 1, 0, 0, 1, 0], *a),
-                        DPlusX(a)   => ([0, 0, 0, 0, 1, 0], *a),
-                        DMinusX(a)  => ([0, 1, 0, 0, 1, 1], *a),
-                        XMinusD(a)  => ([0, 0, 0, 1, 1, 1], *a),
-                        DAndX(a)    => ([0, 0, 0, 0, 0, 0], *a),
-                        DOrX(a)     => ([0, 1, 0, 1, 0, 1], *a),
-                    };
-                bits[12] = a;
-                for i in 0 .. 6 { bits[11 - i] = comp[i] != 0; }
-                bits[5] = dest & dest_A != 0;
-                bits[4] = dest & dest_D != 0;
-                bits[3] = dest & dest_M != 0;
-                let jump =
-                    match jump {
-                        Jump::Null  => [0, 0, 0],
-                        Jump::JGT   => [0, 0, 1],
-                        Jump::JEQ   => [0, 1, 0],
-                        Jump::JGE   => [0, 1, 1],
-                        Jump::JLT   => [1, 0, 0],
-                        Jump::JNE   => [1, 0, 1],
-                        Jump::JLE   => [1, 1, 0],
-                        Jump::JMP   => [1, 1, 1]
-                    };
-                for i in 0 .. 3 { bits[2 - i] = jump[i] != 0; }
+                let mut bits = 1 << 15; // C-instruction's MSB = 1
+                let (comp, a) = match comp {
+                    Zero        => (0b101010, false),
+                    One         => (0b111111, false),
+                    MinusOne    => (0b111010, false),
+                    D           => (0b001100, false),
+                    X(a)        => (0b110000, *a),
+                    NotD        => (0b001101, false),
+                    NotX(a)     => (0b110001, *a),
+                    MinusD      => (0b001111, false),
+                    MinusX(a)   => (0b110011, *a),
+                    DPlusOne    => (0b011111, false),
+                    XPlusOne(a) => (0b110111, *a),
+                    DMinusOne   => (0b001110, false),
+                    XMinusOne(a)=> (0b110010, *a),
+                    DPlusX(a)   => (0b000010, *a),
+                    DMinusX(a)  => (0b010011, *a),
+                    XMinusD(a)  => (0b000111, *a),
+                    DAndX(a)    => (0b000000, *a),
+                    DOrX(a)     => (0b010101, *a),
+                };
+                bits |= comp << 6;
+                if a { bits |= 1 << 12; }
+                bits |= (*dest as i16) << 3;
+                bits |= match jump {
+                    Jump::Null  => 0b000,
+                    Jump::JGT   => 0b001,
+                    Jump::JEQ   => 0b010,
+                    Jump::JGE   => 0b011,
+                    Jump::JLT   => 0b100,
+                    Jump::JNE   => 0b101,
+                    Jump::JLE   => 0b110,
+                    Jump::JMP   => 0b111
+                };
                 bits
             }
         }
+    }
+    pub fn to_bits(&self) -> [bool; 16] {
+        int2word(self.encode())
     }
 }

@@ -7,7 +7,7 @@ pub struct ROM32K {
 impl ROM32K {
     pub fn new(data: &[i16]) -> Self {
         let mut rom = Self{ data: [0; 32 * 1024] };
-        rom.data.copy_from_slice(data);
+        for i in 0 .. data.len() { rom.data[i] = data[i]; }
         rom
     }
     pub fn out(&self, address: Word) -> Word {
@@ -26,7 +26,7 @@ impl Screen {
     pub fn out(&self, address: [bool; 13]) -> Word {
         let i = {
             let mut a = [false; 16];
-            a.copy_from_slice(&address);
+            for i in 0 .. address.len() { a[i] = address[i]; }
             word2int(a) as usize
         };
         int2word(self.data[i])
@@ -35,7 +35,7 @@ impl Screen {
         if load {
             let i = {
                 let mut a = [false; 16];
-                a.copy_from_slice(&address);
+                for i in 0 .. address.len() { a[i] = address[i]; }
                 word2int(a) as usize
             };
             self.data[i] = word2int(input);

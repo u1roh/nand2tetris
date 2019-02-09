@@ -45,8 +45,8 @@ impl Memory {
             address[ 8], address[ 9], address[10], address[11],
             address[12],
         ];
-        let (load_not_ram, load_ram) = dmux(load, address[14]);
-        let (load_screen, _) = dmux(load_not_ram, address[13]);
+        let (load_ram, load_not_ram) = dmux(load, address[14]);
+        let (_, load_screen) = dmux(load_not_ram, address[13]);
         self.ram.clock(ram_addr, input, load_ram);
         self.screen.clock(screen_addr, input, load_ram);
     }
@@ -73,10 +73,35 @@ impl Machine {
             reset: reset
         };
         let cpu_out = self.cpu.out(cpu_input);
-        self.data_memory.clock(cpu_out.addressM, cpu_out.outM, cpu_out.writeM);
+        self.data_memory.clock(self.cpu.addressM(), cpu_out.outM, cpu_out.writeM);
         self.cpu.clock(cpu_input);
     }
     pub fn read_memory(&self, address: i16) -> i16 {
         word2int(self.data_memory.out(int2word(address)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::asm::*;
+
+    fn run_machine(asm: &[Instruction], address: i16) -> i16 {
+        let bin = asm.iter().map(|inst| inst.encode()).collect::<Vec<_>>();
+        let mut machine = Machine::new(&bin);
+        for _ in 0 .. asm.len() {
+            machine.clock(false);
+        }
+        machine.read_memory(address)
+    }
+
+    #[test]
+    fn test_set_value_to_memory() {
+        let address = 0b0000000000010000;
+        let asm = [
+            AInstruction(address),
+            CInstruction(Computation::One, dest::M, Jump::Null)
+        ];
+        assert_eq!(run_machine(&asm, address), 1);
     }
 }

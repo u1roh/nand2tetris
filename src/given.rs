@@ -33,6 +33,12 @@ pub fn word2int(a: Word) -> i16 {
     n
 }
 
+pub fn bits2int(bits: &[bool]) -> i16 {
+    let mut n = 0;
+    for i in 0 .. bits.len() { if bits[i] { n |= 1 << i; } }
+    n
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

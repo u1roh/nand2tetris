@@ -19,8 +19,6 @@ pub struct CpuInput {
 pub struct CpuOutput {
     pub outM: Word,
     pub writeM: bool,
-    pub addressM: Word,
-    pub pc: Word
 }
 
 struct ControlBits {
@@ -72,8 +70,6 @@ impl Cpu {
         CpuOutput{
             outM: self.alu(input.inM, input.instruction).out,
             writeM: input.instruction[3],
-            addressM: self.A.out(),
-            pc: self.PC.out()
         }
     }
     pub fn clock(&mut self, input: CpuInput) {
@@ -110,29 +106,29 @@ mod tests {
     }
     
     fn set_D_input(inM: i16) -> CpuInput {
-        make_input(inM, CInstruction(Computation::X(true), dest_D, Jump::Null))
+        make_input(inM, CInstruction(Computation::X(true), dest::D, Jump::Null))
     }
 
     fn set_A_input(inM: i16) -> CpuInput {
-        make_input(inM, CInstruction(Computation::X(true), dest_A, Jump::Null))
+        make_input(inM, CInstruction(Computation::X(true), dest::A, Jump::Null))
     }
 
     #[test]
     fn test_pc() {
         let mut cpu = Cpu::new();
-        assert_eq!(word2int(cpu.out(null_input()).pc), 0);
+        assert_eq!(word2int(cpu.pc()), 0);
 
         cpu.clock(null_input());
-        assert_eq!(word2int(cpu.out(null_input()).pc), 1);
+        assert_eq!(word2int(cpu.pc()), 1);
 
         cpu.clock(null_input());
-        assert_eq!(word2int(cpu.out(null_input()).pc), 2);
+        assert_eq!(word2int(cpu.pc()), 2);
 
         cpu.clock(null_input());
-        assert_eq!(word2int(cpu.out(null_input()).pc), 3);
+        assert_eq!(word2int(cpu.pc()), 3);
 
         cpu.clock(reset_input());
-        assert_eq!(word2int(cpu.out(null_input()).pc), 0);
+        assert_eq!(word2int(cpu.pc()), 0);
     }
 
     #[test]
@@ -141,7 +137,7 @@ mod tests {
         let addrs = [0, 1, 4, 24, 726, 395];
         for &a in &addrs {
             cpu.clock(make_input(0, AInstruction(a)));
-            assert_eq!(word2int(cpu.out(null_input()).addressM), a);
+            assert_eq!(word2int(cpu.addressM()), a);
         }
     }
 
@@ -152,7 +148,7 @@ mod tests {
         let out = cpu.out(make_input(0, CInstruction(Computation::Zero, 0, Jump::Null)));
         assert_eq!(out.writeM, false);
 
-        let out = cpu.out(make_input(0, CInstruction(Computation::Zero, dest_M, Jump::Null)));
+        let out = cpu.out(make_input(0, CInstruction(Computation::Zero, dest::M, Jump::Null)));
         assert_eq!(out.writeM, true);
     }
 
@@ -177,13 +173,13 @@ mod tests {
         assert_eq!(word2int(cpu.out(get_D).outM), 0);
 
         // set 1 to D-register
-        cpu.clock(make_input(0, CInstruction(Computation::One, dest_D, Jump::Null)));
+        cpu.clock(make_input(0, CInstruction(Computation::One, dest::D, Jump::Null)));
 
         // get D-register value
         assert_eq!(word2int(cpu.out(get_D).outM), 1);
 
         // set -1 to D-register
-        cpu.clock(make_input(0, CInstruction(Computation::MinusOne, dest_D, Jump::Null)));
+        cpu.clock(make_input(0, CInstruction(Computation::MinusOne, dest::D, Jump::Null)));
 
         // get D-register value
         assert_eq!(word2int(cpu.out(get_D).outM), -1);
@@ -213,13 +209,13 @@ mod tests {
         assert_eq!(word2int(cpu.out(get_A).outM), 0);
 
         // set 1 to A-register
-        cpu.clock(make_input(0, CInstruction(Computation::One, dest_A, Jump::Null)));
+        cpu.clock(make_input(0, CInstruction(Computation::One, dest::A, Jump::Null)));
 
         // get A-register value
         assert_eq!(word2int(cpu.out(get_A).outM), 1);
 
         // set -1 to A-register
-        cpu.clock(make_input(0, CInstruction(Computation::MinusOne, dest_A, Jump::Null)));
+        cpu.clock(make_input(0, CInstruction(Computation::MinusOne, dest::A, Jump::Null)));
 
         // get A-register value
         assert_eq!(word2int(cpu.out(get_A).outM), -1);
@@ -266,7 +262,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.clock(make_input(0, AInstruction(address)));
         cpu.clock(make_input(0, CInstruction(comp, 0, jump)));
-        word2int(cpu.out(null_input()).pc)
+        word2int(cpu.pc())
     }
 
     #[test]
