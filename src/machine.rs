@@ -86,10 +86,10 @@ mod tests {
     use super::*;
     use crate::asm::*;
 
-    fn run_machine(asm: &[Instruction], address: i16) -> i16 {
+    fn run_machine(asm: &[Instruction], nclock: usize, address: i16) -> i16 {
         let bin = asm.iter().map(|inst| inst.encode()).collect::<Vec<_>>();
         let mut machine = Machine::new(&bin);
-        for _ in 0 .. asm.len() {
+        for _ in 0 .. nclock {
             machine.clock(false);
         }
         machine.read_memory(address)
@@ -102,6 +102,55 @@ mod tests {
             AInstruction(address),
             CInstruction(Computation::One, dest::M, Jump::Null)
         ];
-        assert_eq!(run_machine(&asm, address), 1);
+        assert_eq!(run_machine(&asm, asm.len(), address), 1);
+    }
+
+    #[test]
+    fn test_123_plus_456() {
+        use Computation::*;
+        let sum = 0b10000;  // address of symbol 'sum'
+        let asm = [
+            /* @123     */  AInstruction(123),
+            /* D=A      */  CInstruction(X(false), dest::D, Jump::Null),
+            /* @sum     */  AInstruction(sum),
+            /* M=D      */  CInstruction(D, dest::M, Jump::Null),
+            /* @456     */  AInstruction(456),
+            /* D=A      */  CInstruction(X(false), dest::D, Jump::Null),
+            /* @sum     */  AInstruction(sum),
+            /* M=D+M    */  CInstruction(DPlusX(true), dest::M, Jump::Null),
+        ];
+        assert_eq!(run_machine(&asm, asm.len(), sum), 123 + 456);
+    }
+
+    #[test]
+    fn test_sum_1_to_10() {
+        use Computation::*;
+        let i   = 0b10000;  // address of symbol 'i'
+        let sum = 0b10001;  // address of symbol 'sum'
+        let asm = [
+            /* @i       */  AInstruction(i),
+            /* M=1      */  CInstruction(One, dest::M, Jump::Null),
+            /* @sum     */  AInstruction(sum),
+            /* M=0      */  CInstruction(Zero, dest::M, Jump::Null),
+            /* (LOOP)   */  // address is 4
+            /* @i       */  AInstruction(i),
+            /* D=M      */  CInstruction(X(true), dest::D, Jump::Null),
+            /* @10      */  AInstruction(10),
+            /* D=D-A    */  CInstruction(DMinusX(false), dest::D, Jump::Null),
+            /* @END     */  AInstruction(18),
+            /* D;JGT    */  CInstruction(D, 0, Jump::JGT),
+            /* @i       */  AInstruction(i),
+            /* D=M      */  CInstruction(X(true), dest::D, Jump::Null),
+            /* @sum     */  AInstruction(sum),
+            /* M=D+M    */  CInstruction(DPlusX(true), dest::M, Jump::Null),
+            /* @i       */  AInstruction(i),
+            /* M=M+1    */  CInstruction(XPlusOne(true), dest::M, Jump::Null),
+            /* @LOOP    */  AInstruction(4),
+            /* 0;JMP    */  CInstruction(Zero, 0, Jump::JMP),
+            /* (END)    */  // address = 18
+            /* @END     */  AInstruction(18),
+            /* 0;JMP    */  CInstruction(Zero, 0, Jump::JMP),
+        ];
+        assert_eq!(run_machine(&asm, asm.len() * 10, sum), 10 * (10 + 1) / 2);
     }
 }

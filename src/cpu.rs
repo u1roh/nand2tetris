@@ -53,11 +53,13 @@ impl Cpu {
             in_d: alu_out.out,
             in_pc: self.A.out(),
             load_a: or(instruction[5], not(is_c_instruction)),
-            load_d: instruction[4],
-            jump: or(or(
-                and(instruction[0], not(or(alu_out.zr, alu_out.ng))),
-                and(instruction[1], alu_out.zr)),
-                and(instruction[2], alu_out.ng))
+            load_d: and(instruction[4], is_c_instruction),
+            jump: and(
+                is_c_instruction,
+                or(or(
+                    and(instruction[0], not(or(alu_out.zr, alu_out.ng))),
+                    and(instruction[1], alu_out.zr)),
+                    and(instruction[2], alu_out.ng)))
         }
     }
     pub fn addressM(&self) -> Word {
@@ -67,9 +69,10 @@ impl Cpu {
         self.PC.out()
     }
     pub fn out(&self, input: CpuInput) -> CpuOutput {
+        let is_c_instruction = input.instruction[15];
         CpuOutput{
             outM: self.alu(input.inM, input.instruction).out,
-            writeM: input.instruction[3],
+            writeM: and(is_c_instruction, input.instruction[3]),
         }
     }
     pub fn clock(&mut self, input: CpuInput) {
@@ -77,6 +80,9 @@ impl Cpu {
         self.A.clock(c.in_a, c.load_a);
         self.D.clock(c.in_d, c.load_d);
         self.PC.clock(c.in_pc, not(c.jump), c.jump, input.reset);
+    }
+    pub fn print_status(&self) {
+        println!("CPU: A = {}, D = {}, PC = {}", debug::word2int(self.A.out()), debug::word2int(self.D.out()), debug::word2int(self.PC.out()));
     }
 }
 
@@ -89,7 +95,7 @@ mod tests {
     fn make_input(inM: i16, inst: Instruction) -> CpuInput {
         CpuInput {
             inM: int2word(inM),
-            instruction: inst.to_bits(),
+            instruction: inst.to_word(),
             reset: false
         }
     }
