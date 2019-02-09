@@ -84,7 +84,7 @@ impl Machine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::asm::*;
+    use crate::inst::*;
 
     fn run_machine(asm: &[Instruction], nclock: usize, address: i16) -> i16 {
         let bin = asm.iter().map(|inst| inst.encode()).collect::<Vec<_>>();

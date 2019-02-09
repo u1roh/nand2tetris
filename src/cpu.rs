@@ -88,7 +88,7 @@ impl Cpu {
 
 #[cfg(test)]
 mod tests {
-    use crate::asm::*;
+    use crate::inst::*;
     use super::*;
     use debug::*;
 
