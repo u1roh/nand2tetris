@@ -1,4 +1,5 @@
-use crate::given::{Word, int2word, word2int};
+use crate::given::Word;
+use crate::given::debug::{int2word, word2int};
 
 pub struct ROM32K {
     data: [i16; 32 * 1024]

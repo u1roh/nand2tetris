@@ -154,6 +154,8 @@ mod tests {
         }}}}}}}}
     }
 
+    use debug::*;
+
     #[test]
     fn test_mux4way16() {
         let a = int2word(1);

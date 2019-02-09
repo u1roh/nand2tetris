@@ -34,6 +34,7 @@ pub fn alu(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use debug::*;
 
     fn assert_alu(x: i16, y: i16, zx: i8, nx: i8, zy: i8, ny: i8, f: i8, no: i8, expected: i16) {
         let wx = int2word(x);

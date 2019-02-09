@@ -212,6 +212,7 @@ impl Counter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use debug::*;
 
     #[test]
     fn test_bit() {

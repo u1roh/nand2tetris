@@ -36,6 +36,7 @@ pub fn inc16(a: Word) -> Word {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use debug::*;
 
     #[test]
     fn test_half_adder() {

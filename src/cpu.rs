@@ -84,6 +84,7 @@ impl Cpu {
 mod tests {
     use crate::asm::*;
     use super::*;
+    use debug::*;
 
     fn make_input(inM: i16, inst: Instruction) -> CpuInput {
         CpuInput {

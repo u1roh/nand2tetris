@@ -77,7 +77,7 @@ impl Machine {
         self.cpu.clock(cpu_input);
     }
     pub fn read_memory(&self, address: i16) -> i16 {
-        word2int(self.data_memory.out(int2word(address)))
+        debug::word2int(self.data_memory.out(debug::int2word(address)))
     }
 }
 

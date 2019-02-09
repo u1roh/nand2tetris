@@ -1,4 +1,4 @@
-use crate::given::int2word;
+use crate::given::debug::int2word;
 
 pub enum Computation {
     Zero,               // 0

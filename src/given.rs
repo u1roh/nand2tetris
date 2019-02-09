@@ -21,23 +21,28 @@ impl Flipflop {
 // 16bit word
 pub type Word = [bool; 16];
 
-pub fn int2word(a: i16) -> Word {
-    let mut word = [false; 16];
-    for i in 0 .. 16 { word[i] = a & (1 << i) != 0; }
-    word
+pub mod debug {
+    use super::Word;
+
+    pub fn int2word(a: i16) -> Word {
+        let mut word = [false; 16];
+        for i in 0 .. 16 { word[i] = a & (1 << i) != 0; }
+        word
+    }
+
+    pub fn word2int(a: Word) -> i16 {
+        let mut n = 0;
+        for i in 0 .. 16 { if a[i] { n |= 1 << i; } }
+        n
+    }
+
+    pub fn bits2int(bits: &[bool]) -> i16 {
+        let mut n = 0;
+        for i in 0 .. bits.len() { if bits[i] { n |= 1 << i; } }
+        n
+    }
 }
 
-pub fn word2int(a: Word) -> i16 {
-    let mut n = 0;
-    for i in 0 .. 16 { if a[i] { n |= 1 << i; } }
-    n
-}
-
-pub fn bits2int(bits: &[bool]) -> i16 {
-    let mut n = 0;
-    for i in 0 .. bits.len() { if bits[i] { n |= 1 << i; } }
-    n
-}
 
 #[cfg(test)]
 mod tests {
