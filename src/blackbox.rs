@@ -2,12 +2,12 @@ use crate::given::Word;
 use crate::given::debug::{int2word, word2int};
 
 pub struct ROM32K {
-    data: [i16; 32 * 1024]
+    data: Box<[i16; 32 * 1024]>
 }
 
 impl ROM32K {
     pub fn new(data: &[i16]) -> Self {
-        let mut rom = Self{ data: [0; 32 * 1024] };
+        let mut rom = Self{ data: Box::new([0; 32 * 1024]) };
         for i in 0 .. data.len() { rom.data[i] = data[i]; }
         rom
     }
@@ -17,12 +17,12 @@ impl ROM32K {
 }
 
 pub struct Screen {
-    data: [i16; 16 * 1024]
+    data: Box<[i16; 16 * 1024]>
 }
 
 impl Screen {
     pub fn new() -> Self {
-        Self{ data: [0; 16 * 1024] }
+        Self{ data: Box::new([0; 16 * 1024]) }
     }
     pub fn out(&self, address: [bool; 13]) -> Word {
         let i = {
@@ -42,8 +42,8 @@ impl Screen {
             self.data[i] = word2int(input);
         }
     }
-    pub fn raw_image(&self) -> &[i16; 16 * 1024] {
-        &self.data
+    pub fn raw_image(&self) -> &[i16] {
+        &*self.data
     }
 }
 

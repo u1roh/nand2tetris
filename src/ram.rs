@@ -97,13 +97,13 @@ impl RAM64 {
     }
 }
 
-pub struct RAM512 { rams: [RAM64; 8] }
+pub struct RAM512 { rams: Box<[RAM64; 8]> }
 impl RAM512 {
     pub fn new() -> Self {
-        Self { rams: [
+        Self { rams: Box::new([
             RAM64::new(), RAM64::new(), RAM64::new(), RAM64::new(),
             RAM64::new(), RAM64::new(), RAM64::new(), RAM64::new(),
-        ]}
+        ]) }
     }
     pub fn out(&self, address: [bool; 9]) -> Word {
         let lo = [address[0], address[1], address[2], address[3], address[4], address[5]];
@@ -129,12 +129,20 @@ impl RAM512 {
 }
 
 pub struct RAM4K { rams: [RAM512; 8] }
+//pub struct RAM4K { rams: Box<[RAM512; 8]> }
+//pub struct RAM4K { rams: Vec<RAM512> }
 impl RAM4K {
     pub fn new() -> Self {
+        /*
+        Self { rams: Box::new([
+            RAM512::new(), RAM512::new(), RAM512::new(), RAM512::new(),
+            RAM512::new(), RAM512::new(), RAM512::new(), RAM512::new(),
+        ]) }
+        */
         Self { rams: [
             RAM512::new(), RAM512::new(), RAM512::new(), RAM512::new(),
             RAM512::new(), RAM512::new(), RAM512::new(), RAM512::new(),
-        ]}
+        ] }
     }
     pub fn out(&self, address: [bool; 12]) -> Word {
         let lo = [
@@ -166,9 +174,10 @@ impl RAM4K {
 }
 
 pub struct RAM16K { rams: [RAM4K; 4] }
+//pub struct RAM16K { rams: Vec<RAM4K> }
 impl RAM16K {
     pub fn new() -> Self {
-        Self { rams: [ RAM4K::new(), RAM4K::new(), RAM4K::new(), RAM4K::new(), ]}
+        Self { rams: [RAM4K::new(), RAM4K::new(), RAM4K::new(), RAM4K::new()] }
     }
     pub fn out(&self, address: [bool; 14]) -> Word {
         let lo = [

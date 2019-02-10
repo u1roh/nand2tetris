@@ -14,6 +14,12 @@ impl Memory {
     pub fn new() -> Self {
         Memory{ ram: RAM16K::new(), screen: Screen::new(), keyboard: Keyboard::new() }
     }
+    pub fn screen(&self) -> &Screen {
+        &self.screen
+    }
+    pub fn keyboard(&self) -> &Keyboard {
+        &self.keyboard
+    }
     pub fn out(&self, address: Word) -> Word {
         let ram_addr = [
             address[ 0], address[ 1], address[ 2], address[ 3],
@@ -53,16 +59,16 @@ impl Memory {
 }
 
 pub struct Machine {
-    instruction_memory: ROM32K,
-    data_memory: Memory,
+    instruction_memory: Box<ROM32K>,
+    data_memory: Box<Memory>,
     cpu: Cpu
 }
 
 impl Machine {
     pub fn new(instructions: &[i16]) -> Self {
         Self{
-            instruction_memory: ROM32K::new(instructions),
-            data_memory: Memory::new(),
+            instruction_memory: Box::new(ROM32K::new(instructions)),
+            data_memory: Box::new(Memory::new()),
             cpu: Cpu::new()
         }
     }
@@ -78,6 +84,12 @@ impl Machine {
     }
     pub fn read_memory(&self, address: i16) -> i16 {
         debug::word2int(self.data_memory.out(debug::int2word(address)))
+    }
+    pub fn screen(&self) -> &Screen {
+        self.data_memory.screen()
+    }
+    pub fn keyboard(&self) -> &Keyboard {
+        self.data_memory.keyboard()
     }
 }
 
