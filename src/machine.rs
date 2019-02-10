@@ -52,7 +52,7 @@ impl Memory {
     }
 }
 
-struct Machine {
+pub struct Machine {
     instruction_memory: ROM32K,
     data_memory: Memory,
     cpu: Cpu
