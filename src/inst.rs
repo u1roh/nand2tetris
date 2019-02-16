@@ -173,27 +173,32 @@ impl std::fmt::Display for Instruction {
                     DOrX(a)     => if *a { "D|M" } else { "D|A" }
                 };
                 let dest = match dest {
-                    0b000 => "null",
-                    0b001 => "M",
-                    0b010 => "D",
-                    0b011 => "MD",
-                    0b100 => "A",
-                    0b101 => "AM",
-                    0b110 => "AD",
-                    0b111 => "AMD",
+                    0b000 => None,
+                    0b001 => Some("M"),
+                    0b010 => Some("D"),
+                    0b011 => Some("MD"),
+                    0b100 => Some("A"),
+                    0b101 => Some("AM"),
+                    0b110 => Some("AD"),
+                    0b111 => Some("AMD"),
                     _ => panic!("invalid destination")
                 };
                 let jump = match jump {
-                    Jump::Null  => "null",
-                    Jump::JGT   => "JGT",
-                    Jump::JEQ   => "JEQ",
-                    Jump::JGE   => "JGE",
-                    Jump::JLT   => "JLT",
-                    Jump::JNE   => "JNE",
-                    Jump::JLE   => "JLE",
-                    Jump::JMP   => "JMP"
+                    Jump::Null  => None,
+                    Jump::JGT   => Some("JGT"),
+                    Jump::JEQ   => Some("JEQ"),
+                    Jump::JGE   => Some("JGE"),
+                    Jump::JLT   => Some("JLT"),
+                    Jump::JNE   => Some("JNE"),
+                    Jump::JLE   => Some("JLE"),
+                    Jump::JMP   => Some("JMP")
                 };
-                write!(f, "{}={};{}", dest, comp, jump)
+                match (dest, jump) {
+                    (None, None) => write!(f, "{}", comp),
+                    (Some(dest), None) => write!(f, "{}={}", dest, comp),
+                    (None, Some(jump)) => write!(f, "{};{}", comp, jump),
+                    (Some(dest), Some(jump)) => write!(f, "{}={};{}", dest, comp, jump)
+                }
             }
         }
 
