@@ -6,6 +6,11 @@
 // Draws a rectangle at the top-left corner of the screen.
 // The rectangle is 16 pixels wide and R0 pixels high.
 
+   @100
+   D=A
+   @R0
+   M=D
+
    @0
    D=M
    @INFINITE_LOOP

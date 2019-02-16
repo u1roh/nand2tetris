@@ -64,7 +64,7 @@ void main ()
     int iy = int(round(texcod.y * 256));
     int ix_lo = ix % 16;
     int ix_hi = ix / 16;
-    int a = texelFetch(texture, ivec2(ix_hi, iy), 0).x;
+    int a = texelFetch(texture, ivec2(ix_hi, 256 - iy), 0).x;
     bool white = (a & (1 << ix_lo)) != 0;
     color = white ? vec4(1, 1, 1, 1) : vec4(0, 0, 0, 1);
     //color = vec4(ix_hi / 32.0, iy / 256.0, 1, 1);
@@ -74,7 +74,7 @@ void main ()
 
 static SCREEN_RECT: [(f32, f32); 4] = [
     (-1.0, -1.0), (1.0, -1.0),
-    (-1.0,  1.0), (1.0,  1.0)
+    (-1.0,  1.0), (1.0,  1.0),
 ];
 
 pub struct Window {
