@@ -17,12 +17,12 @@ impl ROM32K {
 }
 
 pub struct Screen {
-    data: Box<[i16; 16 * 1024]>
+    data: Box<[i16; 32 * 256]>
 }
 
 impl Screen {
     pub fn new() -> Self {
-        Self{ data: Box::new([0; 16 * 1024]) }
+        Self{ data: Box::new([0x0f0f; 32 * 256]) }
     }
     pub fn out(&self, address: [bool; 13]) -> Word {
         let i = {
@@ -42,7 +42,7 @@ impl Screen {
             self.data[i] = word2int(input);
         }
     }
-    pub fn raw_image(&self) -> &[i16] {
+    pub fn raw_image(&self) -> &[i16; 32 * 256] {
         &*self.data
     }
 }

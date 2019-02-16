@@ -5,3 +5,5 @@ authors = ["u1roh <terada.yuichiro+github@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+gl = "*"
+glutin = "*"
