@@ -38,11 +38,13 @@ pub fn and16(a: Word, b: Word) -> Word {
     out
 }
 
+/*
 pub fn or16(a: Word, b: Word) -> Word {
     let mut out = [false; 16];
     for i in 0 .. 16 { out[i] = or(a[i], b[i]); }
     out
 }
+*/
 
 pub fn mux16(a: Word, b: Word, sel: bool) -> Word {
     let mut out = [false; 16];

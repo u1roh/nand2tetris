@@ -1,4 +1,6 @@
 extern crate glutin;
+use std::env;
+use std::io::Read;
 mod given;
 mod gate;
 mod adder;
@@ -13,7 +15,31 @@ mod window;
 
 
 fn main() {
-    let mut m = machine::Machine::new(&[0, 0, 0]);
+    let args = env::args().collect::<Vec<_>>();
+    if args.len() < 2 {
+        println!("usage: {} filename.asm", args[0]);
+        return;
+    }
+
+    let source = {
+        println!("input file is '{}'", args[1]);
+        let mut f = std::fs::File::open(&args[1]).expect("cannot open the input file.");
+        let mut source = String::new();
+        f.read_to_string(&mut source).expect("failed to read file into a string.");
+        println!("{}", source);
+        source
+    };
+
+    let instructions = {
+        let instructions = asm::asm(&source).expect("failed to compile asm to binary instructions.");
+        println!("*** decoded instructions ***");
+        for &i in &instructions {
+            println!("{}", inst::Instruction::decode(i));
+        }
+        instructions
+    };
+
+    let mut machine = machine::Machine::new(&instructions);
 
     let mut events_loop = glutin::EventsLoop::new();
     let window = window::Window::new(&events_loop);
@@ -30,7 +56,7 @@ fn main() {
                 _ => ()
             }
         });
-        window.draw(m.screen().raw_image());
-        m.clock(false);
+        window.draw(machine.screen().raw_image());
+        machine.clock(false);
     }
 }

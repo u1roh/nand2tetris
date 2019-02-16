@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 use crate::given::*;
 use crate::gate::*;
 use crate::ram::*;
@@ -81,6 +82,7 @@ impl Cpu {
         self.D.clock(c.in_d, c.load_d);
         self.PC.clock(c.in_pc, not(c.jump), c.jump, input.reset);
     }
+    #[cfg(test)]
     pub fn print_status(&self) {
         println!("CPU: A = {}, D = {}, PC = {}", debug::word2int(self.A.out()), debug::word2int(self.D.out()), debug::word2int(self.PC.out()));
     }

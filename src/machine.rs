@@ -54,7 +54,7 @@ impl Memory {
         let (load_ram, load_not_ram) = dmux(load, address[14]);
         let (_, load_screen) = dmux(load_not_ram, address[13]);
         self.ram.clock(ram_addr, input, load_ram);
-        self.screen.clock(screen_addr, input, load_ram);
+        self.screen.clock(screen_addr, input, load_screen);
     }
 }
 
@@ -82,6 +82,7 @@ impl Machine {
         self.data_memory.clock(self.cpu.addressM(), cpu_out.outM, cpu_out.writeM);
         self.cpu.clock(cpu_input);
     }
+    #[cfg(test)]
     pub fn read_memory(&self, address: i16) -> i16 {
         debug::word2int(self.data_memory.out(debug::int2word(address)))
     }

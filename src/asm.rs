@@ -10,8 +10,6 @@ pub enum AsmError<'a> {
     InvalidComputation(&'a str),
     InvalidDestination(&'a str),
     InvalidJump(&'a str),
-    NotImplemented,
-    UnknownError(String)
 }
 
 pub use AsmError::*;
@@ -123,10 +121,10 @@ pub fn asm(program: &str) -> Result<Vec<i16>> {
                     Some("A")   => dest::A,
                     Some("D")   => dest::D,
                     Some("M")   => dest::M,
-                    Some("MD")  => dest::M | dest::A,
+                    Some("MD")  => dest::M | dest::D,
                     Some("AM")  => dest::A | dest::M,
                     Some("AD")  => dest::A | dest::D,
-                    Some("AMD") => dest::A | dest::D | dest::M,
+                    Some("AMD") => dest::A | dest::M | dest::D,
                     Some(dest) => return Some(Err(InvalidDestination(dest))),
                 };
                 let jump = match *jump {

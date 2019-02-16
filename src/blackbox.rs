@@ -22,7 +22,7 @@ pub struct Screen {
 
 impl Screen {
     pub fn new() -> Self {
-        Self{ data: Box::new([0x0f0f; 32 * 256]) }
+        Self{ data: Box::new([0; 32 * 256]) }
     }
     pub fn out(&self, address: [bool; 13]) -> Word {
         let i = {
