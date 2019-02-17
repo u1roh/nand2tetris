@@ -35,7 +35,22 @@ impl Register {
         ]
     }
     pub fn clock(&mut self, input: Word, load: bool) {
-        for i in 0 .. 16 { self.bits[i].clock(input[i], load) }
+        self.bits[ 0].clock(input[ 0], load);
+        self.bits[ 1].clock(input[ 1], load);
+        self.bits[ 2].clock(input[ 2], load);
+        self.bits[ 3].clock(input[ 3], load);
+        self.bits[ 4].clock(input[ 4], load);
+        self.bits[ 5].clock(input[ 5], load);
+        self.bits[ 6].clock(input[ 6], load);
+        self.bits[ 7].clock(input[ 7], load);
+        self.bits[ 8].clock(input[ 8], load);
+        self.bits[ 9].clock(input[ 9], load);
+        self.bits[10].clock(input[10], load);
+        self.bits[11].clock(input[11], load);
+        self.bits[12].clock(input[12], load);
+        self.bits[13].clock(input[13], load);
+        self.bits[14].clock(input[14], load);
+        self.bits[15].clock(input[15], load);
     }
 }
 
@@ -55,14 +70,14 @@ impl RAM8 {
     }
     pub fn clock(&mut self, address: [bool; 3], input: Word, load: bool) {
         let load = dmux8way(load, address);
-        self.registers[0].clock(input, load.0);
-        self.registers[1].clock(input, load.1);
-        self.registers[2].clock(input, load.2);
-        self.registers[3].clock(input, load.3);
-        self.registers[4].clock(input, load.4);
-        self.registers[5].clock(input, load.5);
-        self.registers[6].clock(input, load.6);
-        self.registers[7].clock(input, load.7);
+        self.registers[0].clock(input, load[0]);
+        self.registers[1].clock(input, load[1]);
+        self.registers[2].clock(input, load[2]);
+        self.registers[3].clock(input, load[3]);
+        self.registers[4].clock(input, load[4]);
+        self.registers[5].clock(input, load[5]);
+        self.registers[6].clock(input, load[6]);
+        self.registers[7].clock(input, load[7]);
     }
 }
 
@@ -86,14 +101,14 @@ impl RAM64 {
         let lo = [address[0], address[1], address[2]];
         let hi = [address[3], address[4], address[5]];
         let load = dmux8way(load, hi);
-        self.rams[0].clock(lo, input, load.0);
-        self.rams[1].clock(lo, input, load.1);
-        self.rams[2].clock(lo, input, load.2);
-        self.rams[3].clock(lo, input, load.3);
-        self.rams[4].clock(lo, input, load.4);
-        self.rams[5].clock(lo, input, load.5);
-        self.rams[6].clock(lo, input, load.6);
-        self.rams[7].clock(lo, input, load.7);
+        self.rams[0].clock(lo, input, load[0]);
+        self.rams[1].clock(lo, input, load[1]);
+        self.rams[2].clock(lo, input, load[2]);
+        self.rams[3].clock(lo, input, load[3]);
+        self.rams[4].clock(lo, input, load[4]);
+        self.rams[5].clock(lo, input, load[5]);
+        self.rams[6].clock(lo, input, load[6]);
+        self.rams[7].clock(lo, input, load[7]);
     }
 }
 
@@ -117,14 +132,14 @@ impl RAM512 {
         let lo = [address[0], address[1], address[2], address[3], address[4], address[5]];
         let hi = [address[6], address[7], address[8]];
         let load = dmux8way(load, hi);
-        self.rams[0].clock(lo, input, load.0);
-        self.rams[1].clock(lo, input, load.1);
-        self.rams[2].clock(lo, input, load.2);
-        self.rams[3].clock(lo, input, load.3);
-        self.rams[4].clock(lo, input, load.4);
-        self.rams[5].clock(lo, input, load.5);
-        self.rams[6].clock(lo, input, load.6);
-        self.rams[7].clock(lo, input, load.7);
+        self.rams[0].clock(lo, input, load[0]);
+        self.rams[1].clock(lo, input, load[1]);
+        self.rams[2].clock(lo, input, load[2]);
+        self.rams[3].clock(lo, input, load[3]);
+        self.rams[4].clock(lo, input, load[4]);
+        self.rams[5].clock(lo, input, load[5]);
+        self.rams[6].clock(lo, input, load[6]);
+        self.rams[7].clock(lo, input, load[7]);
     }
 }
 
@@ -162,14 +177,14 @@ impl RAM4K {
             address[6], address[7], address[8] ];
         let hi = [address[9], address[10], address[11]];
         let load = dmux8way(load, hi);
-        self.rams[0].clock(lo, input, load.0);
-        self.rams[1].clock(lo, input, load.1);
-        self.rams[2].clock(lo, input, load.2);
-        self.rams[3].clock(lo, input, load.3);
-        self.rams[4].clock(lo, input, load.4);
-        self.rams[5].clock(lo, input, load.5);
-        self.rams[6].clock(lo, input, load.6);
-        self.rams[7].clock(lo, input, load.7);
+        self.rams[0].clock(lo, input, load[0]);
+        self.rams[1].clock(lo, input, load[1]);
+        self.rams[2].clock(lo, input, load[2]);
+        self.rams[3].clock(lo, input, load[3]);
+        self.rams[4].clock(lo, input, load[4]);
+        self.rams[5].clock(lo, input, load[5]);
+        self.rams[6].clock(lo, input, load[6]);
+        self.rams[7].clock(lo, input, load[7]);
     }
 }
 
@@ -198,10 +213,10 @@ impl RAM16K {
             address[9], address[10], address[11] ];
         let hi = [address[12], address[13]];
         let load = dmux4way(load, hi);
-        self.rams[0].clock(lo, input, load.0);
-        self.rams[1].clock(lo, input, load.1);
-        self.rams[2].clock(lo, input, load.2);
-        self.rams[3].clock(lo, input, load.3);
+        self.rams[0].clock(lo, input, load[0]);
+        self.rams[1].clock(lo, input, load[1]);
+        self.rams[2].clock(lo, input, load[2]);
+        self.rams[3].clock(lo, input, load[3]);
     }
 }
 

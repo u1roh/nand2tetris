@@ -51,9 +51,8 @@ impl Memory {
             address[ 8], address[ 9], address[10], address[11],
             address[12],
         ];
-        //if load { println!("Memory::clock: address = {:>016b}, input = {}", debug::word2int(address), debug::word2int(input)); }
-        let (load_ram, load_not_ram) = dmux(load, address[14]);
-        let (load_screen, _) = dmux(load_not_ram, address[13]);
+        let [load_ram, load_not_ram] = dmux(load, address[14]);
+        let [load_screen, _] = dmux(load_not_ram, address[13]);
         self.ram.clock(ram_addr, input, load_ram);
         self.screen.clock(screen_addr, input, load_screen);
     }

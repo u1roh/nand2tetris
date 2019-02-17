@@ -16,40 +16,41 @@ pub fn xor(a: bool, b: bool) -> bool {
     or(and(a, not(b)), and(not(a), b))
 }
 
-// multiprexor
+// multiplexor
 pub fn mux(a: bool, b: bool, sel: bool) -> bool {
     or(and(a, not(sel)), and(b, sel))
 }
 
-// demultiprexor
-pub fn dmux(input: bool, sel: bool) -> (bool, bool) {
-    (and(input, not(sel)), and(input, sel))
+// demultiplexor
+pub fn dmux(input: bool, sel: bool) -> [bool; 2] {
+    [and(input, not(sel)), and(input, sel)]
 }
 
 pub fn not16(a: Word) -> Word {
-    let mut out = [false; 16];
-    for i in 0 .. 16 { out[i] = not(a[i]); }
-    out
+    [
+        not(a[ 0]), not(a[ 1]), not(a[ 2]), not(a[ 3]),
+        not(a[ 4]), not(a[ 5]), not(a[ 6]), not(a[ 7]),
+        not(a[ 8]), not(a[ 9]), not(a[10]), not(a[11]),
+        not(a[12]), not(a[13]), not(a[14]), not(a[15]),
+    ]
 }
 
 pub fn and16(a: Word, b: Word) -> Word {
-    let mut out = [false; 16];
-    for i in 0 .. 16 { out[i] = and(a[i], b[i]); }
-    out
+    [
+        and(a[ 0], b[ 0]), and(a[ 1], b[ 1]), and(a[ 2], b[ 2]), and(a[ 3], b[ 3]),
+        and(a[ 4], b[ 4]), and(a[ 5], b[ 5]), and(a[ 6], b[ 6]), and(a[ 7], b[ 7]),
+        and(a[ 8], b[ 8]), and(a[ 9], b[ 9]), and(a[10], b[10]), and(a[11], b[11]),
+        and(a[12], b[12]), and(a[13], b[13]), and(a[14], b[14]), and(a[15], b[15]),
+    ]
 }
-
-/*
-pub fn or16(a: Word, b: Word) -> Word {
-    let mut out = [false; 16];
-    for i in 0 .. 16 { out[i] = or(a[i], b[i]); }
-    out
-}
-*/
 
 pub fn mux16(a: Word, b: Word, sel: bool) -> Word {
-    let mut out = [false; 16];
-    for i in 0 .. 16 { out[i] = mux(a[i], b[i], sel); }
-    out
+    [
+        mux(a[ 0], b[ 0], sel), mux(a[ 1], b[ 1], sel), mux(a[ 2], b[ 2], sel), mux(a[ 3], b[ 3], sel),
+        mux(a[ 4], b[ 4], sel), mux(a[ 5], b[ 5], sel), mux(a[ 6], b[ 6], sel), mux(a[ 7], b[ 7], sel),
+        mux(a[ 8], b[ 8], sel), mux(a[ 9], b[ 9], sel), mux(a[10], b[10], sel), mux(a[11], b[11], sel),
+        mux(a[12], b[12], sel), mux(a[13], b[13], sel), mux(a[14], b[14], sel), mux(a[15], b[15], sel),
+    ]
 }
 
 pub fn or8way(a: [bool; 8]) -> bool {
@@ -64,18 +65,18 @@ pub fn mux8way16(a: Word, b: Word, c: Word, d: Word, e: Word, f: Word, g: Word, 
     mux16(mux4way16(a, b, c, d, [sel[0], sel[1]]), mux4way16(e, f, g, h, [sel[0], sel[1]]), sel[2])
 }
 
-pub fn dmux4way(input: bool, sel: [bool; 2]) -> (bool, bool, bool, bool) {
-    let (ab, cd) = dmux(input, sel[1]);
-    let (a, b) = dmux(ab, sel[0]);
-    let (c, d) = dmux(cd, sel[0]);
-    (a, b, c, d)
+pub fn dmux4way(input: bool, sel: [bool; 2]) -> [bool; 4] {
+    let [ab, cd] = dmux(input, sel[1]);
+    let [a, b] = dmux(ab, sel[0]);
+    let [c, d] = dmux(cd, sel[0]);
+    [a, b, c, d]
 }
 
-pub fn dmux8way(input: bool, sel: [bool; 3]) -> (bool, bool, bool, bool, bool, bool, bool, bool) {
-    let (abcd, efgh) = dmux(input, sel[2]);
-    let (a, b, c, d) = dmux4way(abcd, [sel[0], sel[1]]);
-    let (e, f, g, h) = dmux4way(efgh, [sel[0], sel[1]]);
-    (a, b, c, d, e, f, g, h)
+pub fn dmux8way(input: bool, sel: [bool; 3]) -> [bool; 8] {
+    let [abcd, efgh] = dmux(input, sel[2]);
+    let [a, b, c, d] = dmux4way(abcd, [sel[0], sel[1]]);
+    let [e, f, g, h] = dmux4way(efgh, [sel[0], sel[1]]);
+    [a, b, c, d, e, f, g, h]
 }
 
 #[cfg(test)]
@@ -136,7 +137,7 @@ mod tests {
         let bits = [false, true];
         for &sel in &bits {
             for &x in &bits {
-                assert_eq!(dmux(x, sel), if sel { (false, x) } else { (x, false) })
+                assert_eq!(dmux(x, sel), if sel { [false, x] } else { [x, false] })
             }
         }
     }
@@ -209,10 +210,10 @@ mod tests {
             for &sel0 in &[false, true] {
             for &sel1 in &[false, true] {
                 let expected = match (sel0, sel1) {
-                    (false, false) => (input, false, false, false),
-                    (true,  false) => (false, input, false, false),
-                    (false, true ) => (false, false, input, false),
-                    (true,  true ) => (false, false, false, input),
+                    (false, false) => [input, false, false, false],
+                    (true,  false) => [false, input, false, false],
+                    (false, true ) => [false, false, input, false],
+                    (true,  true ) => [false, false, false, input],
                 };
                 assert_eq!(dmux4way(input, [sel0, sel1]), expected);
             } }
@@ -226,14 +227,14 @@ mod tests {
             for &sel1 in &[false, true] {
             for &sel2 in &[false, true] {
                 let expected = match (sel0, sel1, sel2) {
-                    (false, false, false) => (input, false, false, false, false, false, false, false),
-                    (true,  false, false) => (false, input, false, false, false, false, false, false),
-                    (false, true , false) => (false, false, input, false, false, false, false, false),
-                    (true,  true , false) => (false, false, false, input, false, false, false, false),
-                    (false, false, true ) => (false, false, false, false, input, false, false, false),
-                    (true,  false, true ) => (false, false, false, false, false, input, false, false),
-                    (false, true , true ) => (false, false, false, false, false, false, input, false),
-                    (true,  true , true ) => (false, false, false, false, false, false, false, input),
+                    (false, false, false) => [input, false, false, false, false, false, false, false],
+                    (true,  false, false) => [false, input, false, false, false, false, false, false],
+                    (false, true , false) => [false, false, input, false, false, false, false, false],
+                    (true,  true , false) => [false, false, false, input, false, false, false, false],
+                    (false, false, true ) => [false, false, false, false, input, false, false, false],
+                    (true,  false, true ) => [false, false, false, false, false, input, false, false],
+                    (false, true , true ) => [false, false, false, false, false, false, input, false],
+                    (true,  true , true ) => [false, false, false, false, false, false, false, input],
                 };
                 assert_eq!(dmux8way(input, [sel0, sel1, sel2]), expected);
             } } }
