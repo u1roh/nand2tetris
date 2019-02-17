@@ -14,12 +14,6 @@ impl Memory {
     pub fn new() -> Self {
         Memory{ ram: RAM16K::new(), screen: Screen::new(), keyboard: Keyboard::new() }
     }
-    pub fn screen(&self) -> &Screen {
-        &self.screen
-    }
-    pub fn keyboard(&self) -> &Keyboard {
-        &self.keyboard
-    }
     pub fn out(&self, address: Word) -> Word {
         let ram_addr = [
             address[ 0], address[ 1], address[ 2], address[ 3],
@@ -87,10 +81,10 @@ impl Machine {
         debug::word2int(self.data_memory.out(debug::int2word(address)))
     }
     pub fn screen(&self) -> &Screen {
-        self.data_memory.screen()
+        &self.data_memory.screen
     }
     pub fn keyboard(&self) -> &Keyboard {
-        self.data_memory.keyboard()
+        &self.data_memory.keyboard
     }
 }
 

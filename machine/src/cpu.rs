@@ -82,10 +82,11 @@ impl Cpu {
         self.D.clock(c.in_d, c.load_d);
         self.PC.clock(c.in_pc, not(c.jump), c.jump, input.reset);
     }
-    #[cfg(test)]
+    /*
     pub fn print_status(&self) {
         println!("CPU: A = {}, D = {}, PC = {}", debug::word2int(self.A.out()), debug::word2int(self.D.out()), debug::word2int(self.PC.out()));
     }
+    */
 }
 
 #[cfg(test)]
@@ -97,7 +98,7 @@ mod tests {
     fn make_input(inM: i16, inst: Instruction) -> CpuInput {
         CpuInput {
             inM: int2word(inM),
-            instruction: inst.to_word(),
+            instruction: int2word(inst.encode()),
             reset: false
         }
     }

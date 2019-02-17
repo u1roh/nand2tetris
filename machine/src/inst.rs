@@ -1,8 +1,4 @@
 // Machine Language Specification
-#[cfg(test)]
-use crate::given::Word;
-#[cfg(test)]
-use crate::given::debug::int2word;
 
 pub enum Computation {
     Zero,               // 0
@@ -51,10 +47,6 @@ pub enum Instruction {
 pub use Instruction::*;
 
 impl Instruction {
-    #[cfg(test)]
-    pub fn to_word(&self) -> Word {
-        int2word(self.encode())
-    }
     pub fn encode(&self) -> i16 {
         match self {
             AInstruction(address) => {

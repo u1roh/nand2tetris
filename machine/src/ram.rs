@@ -144,16 +144,8 @@ impl RAM512 {
 }
 
 pub struct RAM4K { rams: [RAM512; 8] }
-//pub struct RAM4K { rams: Box<[RAM512; 8]> }
-//pub struct RAM4K { rams: Vec<RAM512> }
 impl RAM4K {
     pub fn new() -> Self {
-        /*
-        Self { rams: Box::new([
-            RAM512::new(), RAM512::new(), RAM512::new(), RAM512::new(),
-            RAM512::new(), RAM512::new(), RAM512::new(), RAM512::new(),
-        ]) }
-        */
         Self { rams: [
             RAM512::new(), RAM512::new(), RAM512::new(), RAM512::new(),
             RAM512::new(), RAM512::new(), RAM512::new(), RAM512::new(),
@@ -235,6 +227,7 @@ impl Counter {
 
 #[cfg(test)]
 mod tests {
+    #![allow(non_snake_case)]
     use super::*;
     use debug::*;
 
