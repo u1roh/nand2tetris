@@ -83,8 +83,8 @@ impl Machine {
     pub fn screen(&self) -> &Screen {
         &self.data_memory.screen
     }
-    pub fn keyboard(&self) -> &Keyboard {
-        &self.data_memory.keyboard
+    pub fn keyboard_input(&mut self, key: i16) {
+        self.data_memory.keyboard.input(key);
     }
 }
 

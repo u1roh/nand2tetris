@@ -58,4 +58,7 @@ impl Keyboard {
     pub fn out(&self) -> Word {
         int2word(self.key)
     }
+    pub fn input(&mut self, key: i16) {
+        self.key = key;
+    }
 }

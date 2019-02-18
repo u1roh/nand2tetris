@@ -54,6 +54,10 @@ fn main() {
                 glutin::Event::WindowEvent{ event, .. } => match event {
                     glutin::WindowEvent::CloseRequested => running = false,
                     glutin::WindowEvent::Resized(logical_size) => window.resize(logical_size),
+                    glutin::WindowEvent::KeyboardInput{ input, .. } => {
+                        println!("key event: {:?}, {:?}", input.virtual_keycode, input.state);
+                        machine.keyboard_input(0);
+                    },
                     _ => ()
                 },
                 _ => ()
