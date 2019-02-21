@@ -86,6 +86,26 @@ impl Machine {
     pub fn keyboard_input(&mut self, key: i16) {
         self.data_memory.keyboard.input(key);
     }
+    fn ram(&self, address: i16) -> i16 {
+        debug::word2int(self.data_memory.out(debug::int2word(address)))
+    }
+    pub fn print_status_header(&self) {
+        println!("[{:4}] {:5}, [{:4}] {:5}, [{:4}] {:5}, [{:4}] {:5}, [{:4}] {:5}",
+            "SP", "*SP",
+            "LCL", "*LCL",
+            "ARG", "*ARG",
+            "THIS", "*THIS",
+            "THAT", "*THAT");
+    }
+    pub fn print_status(&self) {
+        let (sp, lcl, arg, this, that) = (self.ram(0), self.ram(1), self.ram(2), self.ram(3), self.ram(4));
+        print!("[{:>04x}] {:>5}, [{:04x}] {:>5}, [{:04x}] {:>5}, [{:04x}] {:>5}, [{:04x}] {:>5}\r",
+            sp, self.ram(sp),
+            lcl, self.ram(lcl),
+            arg, self.ram(arg),
+            this, self.ram(this),
+            that, self.ram(that));
+    }
 }
 
 #[cfg(test)]

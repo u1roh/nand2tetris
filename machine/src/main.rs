@@ -42,6 +42,7 @@ fn main() {
 
     // construct a machine with the instructions
     let mut machine = machine::Machine::new(&instructions);
+    machine.print_status_header();
 
     // start events loop
     let mut events_loop = glutin::EventsLoop::new();
@@ -68,7 +69,10 @@ fn main() {
         machine.clock(false);
 
         // refresh screen
-        if counter % 128 == 0 { window.draw(machine.screen().raw_image()); }
+        if counter % 128 == 0 {
+            machine.print_status();
+            window.draw(machine.screen().raw_image());
+        }
         counter = counter + 1;
     }
 }
