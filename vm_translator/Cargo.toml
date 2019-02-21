@@ -1,0 +1,7 @@
+[package]
+name = "vm_translator"
+version = "0.1.0"
+authors = ["u1roh <terada.yuichiro+github@gmail.com>"]
+edition = "2018"
+
+[dependencies]
