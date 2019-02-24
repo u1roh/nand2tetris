@@ -1,4 +1,19 @@
 [[package]]
+name = "asm"
+version = "0.1.0"
+dependencies = [
+ "machine 0.1.0",
+]
+
+[[package]]
+name = "machine"
+version = "0.1.0"
+
+[[package]]
 name = "vm_translator"
 version = "0.1.0"
+dependencies = [
+ "asm 0.1.0",
+ "machine 0.1.0",
+]
 

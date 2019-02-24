@@ -1,5 +1,3 @@
-use std::env;
-use std::io::Read;
 
 enum Segment {
     Argument,
@@ -114,58 +112,65 @@ static VM_TERMINAL_ASM: &str = "
 0;JMP
 ";
 
-fn push(out: &mut std::fmt::Write) {
+fn push(out: &mut std::fmt::Write) -> std::fmt::Result {
     // **SP = D
-    writeln!(out, "@SP");
-    writeln!(out, "A=M");
-    writeln!(out, "M=D");
+    writeln!(out, "@SP")?;
+    writeln!(out, "A=M")?;
+    writeln!(out, "M=D")?;
 
     // *SP = *SP + 1
-    writeln!(out, "@SP");
-    writeln!(out, "M=M+1");
+    writeln!(out, "@SP")?;
+    writeln!(out, "M=M+1")?;
+
+    Ok(())
 }
 
-fn pop(out: &mut std::fmt::Write) {
+fn pop(out: &mut std::fmt::Write) -> std::fmt::Result {
     // *SP = *SP - 1
-    writeln!(out, "@SP");
-    writeln!(out, "M=M-1");
+    writeln!(out, "@SP")?;
+    writeln!(out, "M=M-1")?;
 
     // D = **SP
-    writeln!(out, "@SP");
-    writeln!(out, "A=M");
-    writeln!(out, "D=M");
+    writeln!(out, "@SP")?;
+    writeln!(out, "A=M")?;
+    writeln!(out, "D=M")?;
+
+    Ok(())
 }
 
-fn store(out: &mut std::fmt::Write, symbol: &str) {
-    writeln!(out, "@{}", symbol);
-    writeln!(out, "M=D");
+fn store(out: &mut std::fmt::Write, symbol: &str) -> std::fmt::Result {
+    writeln!(out, "@{}", symbol)?;
+    writeln!(out, "M=D")?;
+    Ok(())
 }
 
-fn load(out: &mut std::fmt::Write, symbol: &str) {
-    writeln!(out, "@{}", symbol);
-    writeln!(out, "D=M");
+fn load(out: &mut std::fmt::Write, symbol: &str) -> std::fmt::Result {
+    writeln!(out, "@{}", symbol)?;
+    writeln!(out, "D=M")?;
+    Ok(())
 }
 
-fn set_segment_index_address_to(out: &mut std::fmt::Write, segment: &Segment, index: i16, dst: char) {
-    writeln!(out, "@{}\nD=A", index); // write 'index' to D-register
+fn set_segment_index_address_to(out: &mut std::fmt::Write, segment: &Segment, index: i16, dst: char) -> std::fmt::Result {
+    writeln!(out, "@{}\nD=A", index)?; // write 'index' to D-register
     use Segment::*;
     match segment {
         Constant => panic!("constant is pseudo segment"),
         Static   => panic!("not implemented"),
         Argument | Local | This | That => {
             let symbol = match segment { Argument => "ARG", Local => "LCL", This => "THIS", That => "THAT", _ => panic!("invalid segment") };
-            writeln!(out, "@{}", symbol);
-            writeln!(out, "{}=D+M", dst);
+            writeln!(out, "@{}", symbol)?;
+            writeln!(out, "{}=D+M", dst)?;
         },
         Pointer | Temp => {
             let symbol = match segment { Pointer => "R3", Temp => "R5", _ => panic!("invalid segment") };
-            writeln!(out, "@{}", symbol);
-            writeln!(out, "{}=D+A", dst);
+            writeln!(out, "@{}", symbol)?;
+            writeln!(out, "{}=D+A", dst)?;
         }
     };
+    Ok(())
 }
 
-pub fn compile(out: &mut std::fmt::Write, source: &str) {
+pub fn compile(out: &mut std::fmt::Write, source: &str) -> std::fmt::Result {
     let commands = source.split("\n")
         .map(|line| if let Some(i) = line.find("//") { &line[..i] } else { line })  // remove comment
         .map(|line| line.trim())  // remove white spaces of head and tail
@@ -173,69 +178,76 @@ pub fn compile(out: &mut std::fmt::Write, source: &str) {
         .map(Command::from_line)
         .collect::<Vec<_>>();
 
-    writeln!(out, "{}", VM_SETUP_ASM);
+    writeln!(out, "{}", VM_SETUP_ASM)?;
     for command in &commands {
         match command {
             Command::Add => {
-                pop(out);
-                store(out, "R13");
-                pop(out);
-                writeln!(out, "@R13");
-                writeln!(out, "D=D+M");
-                push(out);
+                pop(out)?;
+                store(out, "R13")?;
+                pop(out)?;
+                writeln!(out, "@R13")?;
+                writeln!(out, "D=D+M")?;
+                push(out)?;
             },
             Command::Push(segment, index) => {
                 // D = segment[index]
                 match segment {
-                    Segment::Constant => { writeln!(out, "@{}\nD=A", index); },
+                    Segment::Constant => { writeln!(out, "@{}\nD=A", index)?; },
                     _ => {
-                        set_segment_index_address_to(out, segment, *index, 'A');
-                        writeln!(out, "D=M");
+                        set_segment_index_address_to(out, segment, *index, 'A')?;
+                        writeln!(out, "D=M")?;
                     }
                 }
-                push(out);
+                push(out)?;
             },
             Command::Pop(segment, index) => {
                 // *R13 = segment + index
-                set_segment_index_address_to(out, segment, *index, 'D');
-                writeln!(out, "@R13");
-                writeln!(out, "M=D");
+                set_segment_index_address_to(out, segment, *index, 'D')?;
+                writeln!(out, "@R13")?;
+                writeln!(out, "M=D")?;
 
-                pop(out);
+                pop(out)?;
 
                 // **R13 = D
-                writeln!(out, "@R13");
-                writeln!(out, "A=M");
-                writeln!(out, "M=D");
+                writeln!(out, "@R13")?;
+                writeln!(out, "A=M")?;
+                writeln!(out, "M=D")?;
             }
             _ => panic!("not implemented")
 
         }
     }
-    write!(out, "{}", VM_TERMINAL_ASM);
+    write!(out, "{}", VM_TERMINAL_ASM)?;
+    Ok(())
 }
 
-/*
-fn main() {
-    let args = env::args().collect::<Vec<_>>();
-    if args.len() < 2 {
-        println!("usage: {} filename.vm", args[0]);
-        return;
+#[cfg(test)]
+mod tests {
+    extern crate machine;
+    extern crate asm;
+    use machine::*;
+    use super::*;
+
+    fn run_machine(vm_source: &str, nclock: usize) -> i16 {
+        let mut asm_source = String::new();
+        compile(&mut asm_source, vm_source);
+
+        let bin = asm::asm(&asm_source).unwrap();
+        let mut machine = Machine::new(&bin);
+        for _ in 0 .. nclock {
+            machine.clock(false);
+        }
+        machine.read_memory(machine.read_memory(0) - 1) // top of the stack
     }
 
-    // read assembly source codes from input file specified with args[1]
-    let source = {
-        println!("input file is '{}'", args[1]);
-        let mut f = std::fs::File::open(&args[1]).expect("cannot open the input file.");
-        let mut source = String::new();
-        f.read_to_string(&mut source).expect("failed to read file into a string.");
-        println!("{}", source);
-        source
-    };
+    #[test]
+    fn simple_add() {
+        let source = "
+        push constant 7
+        push constant 8
+        add
+        ";
+        assert_eq!(run_machine(source, 100), 15);
+    }
 
-    let path = std::path::Path::new(&args[1]);
-    let mut file = std::fs::File::create(path.with_extension("asm")).unwrap();
-
-    compile(&mut file, &source);
 }
-*/
