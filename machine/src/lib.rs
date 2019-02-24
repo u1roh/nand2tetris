@@ -1,8 +1,17 @@
-use crate::given::*;
-use crate::gate::*;
-use crate::ram::*;
-use crate::cpu::*;
-use crate::blackbox::*;
+mod given;
+mod gate;
+mod adder;
+mod alu;
+mod ram;
+mod cpu;
+mod blackbox;
+pub mod inst;
+
+use given::*;
+use gate::*;
+use ram::*;
+use cpu::*;
+use blackbox::*;
 
 struct Memory {
     ram: RAM16K,
@@ -76,21 +85,18 @@ impl Machine {
         self.data_memory.clock(self.cpu.addressM(), cpu_out.outM, cpu_out.writeM);
         self.cpu.clock(cpu_input);
     }
-    #[cfg(test)]
     pub fn read_memory(&self, address: i16) -> i16 {
         debug::word2int(self.data_memory.out(debug::int2word(address)))
     }
-    pub fn screen(&self) -> &Screen {
-        &self.data_memory.screen
+    pub fn screen_image(&self) -> &[i16; 32 * 256] {
+        self.data_memory.screen.raw_image()
     }
     pub fn keyboard_input(&mut self, key: i16) {
         self.data_memory.keyboard.input(key);
     }
-    fn ram(&self, address: i16) -> i16 {
-        debug::word2int(self.data_memory.out(debug::int2word(address)))
-    }
     pub fn print_status_header(&self) {
-        println!("[{:4}] {:5}, [{:4}] {:5}, [{:4}] {:5}, [{:4}] {:5}, [{:4}] {:5}",
+        println!("{:4}: [{:4}] {:5}, [{:4}] {:5}, [{:4}] {:5}, [{:4}] {:5}, [{:4}] {:5}",
+            "PC",
             "SP", "*SP",
             "LCL", "*LCL",
             "ARG", "*ARG",
@@ -98,13 +104,14 @@ impl Machine {
             "THAT", "*THAT");
     }
     pub fn print_status(&self) {
-        let (sp, lcl, arg, this, that) = (self.ram(0), self.ram(1), self.ram(2), self.ram(3), self.ram(4));
-        print!("[{:>04x}] {:>5}, [{:04x}] {:>5}, [{:04x}] {:>5}, [{:04x}] {:>5}, [{:04x}] {:>5}\r",
-            sp, self.ram(sp),
-            lcl, self.ram(lcl),
-            arg, self.ram(arg),
-            this, self.ram(this),
-            that, self.ram(that));
+        let (sp, lcl, arg, this, that) = (self.read_memory(0), self.read_memory(1), self.read_memory(2), self.read_memory(3), self.read_memory(4));
+        print!("{:4}: [{:>04x}] {:>5}, [{:04x}] {:>5}, [{:04x}] {:>5}, [{:04x}] {:>5}, [{:04x}] {:>5}\r",
+            debug::word2int(self.cpu.pc()),
+            sp, self.read_memory(sp),
+            lcl, self.read_memory(lcl),
+            arg, self.read_memory(arg),
+            this, self.read_memory(this),
+            that, self.read_memory(that));
     }
 }
 

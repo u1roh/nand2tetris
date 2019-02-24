@@ -1,4 +1,5 @@
-use crate::inst::*;
+extern crate machine;
+use machine::inst::*;
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -143,6 +144,7 @@ pub fn asm(program: &str) -> Result<Vec<i16>> {
         }
     }).map(|inst| inst.map(|inst| inst.encode())).collect::<Result<Vec<_>>>()
 }
+
 
 #[cfg(test)]
 mod tests {

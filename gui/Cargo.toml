@@ -1,0 +1,12 @@
+[package]
+name = "gui"
+version = "0.1.0"
+authors = ["u1roh <terada.yuichiro+github@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+machine = { path = "../machine" }
+asm = { path = "../asm" }
+vm_translator = { path = "../vm_translator" }
+gl = "*"
+glutin = "*"

@@ -1,5 +1,8 @@
 [package]
-name = "machine"
+name = "asm"
 version = "0.1.0"
 authors = ["u1roh <terada.yuichiro+github@gmail.com>"]
 edition = "2018"
+
+[dependencies]
+machine = { path = "../machine" }

@@ -114,7 +114,7 @@ static VM_TERMINAL_ASM: &str = "
 0;JMP
 ";
 
-fn push(out: &mut std::io::Write) {
+fn push(out: &mut std::fmt::Write) {
     // **SP = D
     writeln!(out, "@SP");
     writeln!(out, "A=M");
@@ -125,7 +125,7 @@ fn push(out: &mut std::io::Write) {
     writeln!(out, "M=M+1");
 }
 
-fn pop(out: &mut std::io::Write) {
+fn pop(out: &mut std::fmt::Write) {
     // *SP = *SP - 1
     writeln!(out, "@SP");
     writeln!(out, "M=M-1");
@@ -136,17 +136,17 @@ fn pop(out: &mut std::io::Write) {
     writeln!(out, "D=M");
 }
 
-fn store(out: &mut std::io::Write, symbol: &str) {
+fn store(out: &mut std::fmt::Write, symbol: &str) {
     writeln!(out, "@{}", symbol);
     writeln!(out, "M=D");
 }
 
-fn load(out: &mut std::io::Write, symbol: &str) {
+fn load(out: &mut std::fmt::Write, symbol: &str) {
     writeln!(out, "@{}", symbol);
     writeln!(out, "D=M");
 }
 
-fn set_segment_index_address_to(out: &mut std::io::Write, segment: &Segment, index: i16, dst: char) {
+fn set_segment_index_address_to(out: &mut std::fmt::Write, segment: &Segment, index: i16, dst: char) {
     writeln!(out, "@{}\nD=A", index); // write 'index' to D-register
     use Segment::*;
     match segment {
@@ -165,9 +165,16 @@ fn set_segment_index_address_to(out: &mut std::io::Write, segment: &Segment, ind
     };
 }
 
-fn compile(out: &mut std::io::Write, commands: &[Command]) {
+pub fn compile(out: &mut std::fmt::Write, source: &str) {
+    let commands = source.split("\n")
+        .map(|line| if let Some(i) = line.find("//") { &line[..i] } else { line })  // remove comment
+        .map(|line| line.trim())  // remove white spaces of head and tail
+        .filter(|line| !line.is_empty())    // filter empty line
+        .map(Command::from_line)
+        .collect::<Vec<_>>();
+
     writeln!(out, "{}", VM_SETUP_ASM);
-    for command in commands {
+    for command in &commands {
         match command {
             Command::Add => {
                 pop(out);
@@ -196,7 +203,7 @@ fn compile(out: &mut std::io::Write, commands: &[Command]) {
 
                 pop(out);
 
-                // *R13 = D
+                // **R13 = D
                 writeln!(out, "@R13");
                 writeln!(out, "A=M");
                 writeln!(out, "M=D");
@@ -208,6 +215,7 @@ fn compile(out: &mut std::io::Write, commands: &[Command]) {
     write!(out, "{}", VM_TERMINAL_ASM);
 }
 
+/*
 fn main() {
     let args = env::args().collect::<Vec<_>>();
     if args.len() < 2 {
@@ -225,15 +233,9 @@ fn main() {
         source
     };
 
-    let commands = source.split("\n")
-        .map(|line| if let Some(i) = line.find("//") { &line[..i] } else { line })  // remove comment
-        .map(|line| line.trim())  // remove white spaces of head and tail
-        .filter(|line| !line.is_empty())    // filter empty line
-        .map(Command::from_line)
-        .collect::<Vec<_>>();
-
     let path = std::path::Path::new(&args[1]);
     let mut file = std::fs::File::create(path.with_extension("asm")).unwrap();
 
-    compile(&mut file, &commands);
+    compile(&mut file, &source);
 }
+*/
