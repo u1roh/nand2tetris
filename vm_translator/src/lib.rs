@@ -12,7 +12,8 @@ enum Segment {
 
 enum Command<'a> {
     // arithmetic and logical commands
-    Add, Sub, Neg, Eq, Gt, Lt, And, Or, Not,
+    BinaryOp(&'a str),
+    UnaryOp(&'a str),
 
     // memory access commands
     Push(Segment, i16),
@@ -47,20 +48,13 @@ impl Segment {
 }
 
 impl<'a> Command<'a> {
-    fn from_line(line: &str) -> Self {
+    fn from_line(line: &'a str) -> Self {
         assert!(!line.is_empty());
         let tokens = line.split_whitespace().collect::<Vec<_>>();
         assert!(tokens.len() != 0);
         match tokens[0] {
-            "add"   => Command::Add,
-            "sub"   => Command::Sub,
-            "neg"   => Command::Neg,
-            "eq"    => Command::Eq,
-            "gt"    => Command::Gt,
-            "lt"    => Command::Lt,
-            "and"   => Command::And,
-            "or"    => Command::Or,
-            "Not"   => Command::Not,
+            "neg" | "not" => Command::UnaryOp(tokens[0]),
+            "add" | "sub" | "eq" | "gt" | "lt" | "and" | "or" => Command::BinaryOp(tokens[0]),
             "push"  => {
                 assert_eq!(tokens.len(), 3);
                 let segment = Segment::from_str(tokens[1]).unwrap();
@@ -181,12 +175,16 @@ pub fn compile(out: &mut std::fmt::Write, source: &str) -> std::fmt::Result {
     writeln!(out, "{}", VM_SETUP_ASM)?;
     for command in &commands {
         match command {
-            Command::Add => {
+            Command::BinaryOp(name) => {
                 pop(out)?;
                 store(out, "R13")?;
                 pop(out)?;
                 writeln!(out, "@R13")?;
-                writeln!(out, "D=D+M")?;
+                match *name {
+                    "add" => writeln!(out, "D=D+M")?,
+                    "sub" => writeln!(out, "D=D-M")?,
+                    _ => panic!("unknown command")
+                }
                 push(out)?;
             },
             Command::Push(segment, index) => {
