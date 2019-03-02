@@ -1,23 +1,12 @@
 
-enum Segment {
-    Argument,
-    Local,
-    Static,
-    Constant,
-    This,
-    That,
-    Pointer,
-    Temp
-}
-
 enum Command<'a> {
     // arithmetic and logical commands
     BinaryOp(&'a str),
     UnaryOp(&'a str),
 
     // memory access commands
-    Push(Segment, i16),
-    Pop(Segment, i16),
+    Push{ segment: &'a str, index: i16 },
+    Pop { segment: &'a str, index: i16 },
 
     // program flow commands
     Label(&'a str),
@@ -30,23 +19,6 @@ enum Command<'a> {
     Return
 }
 
-impl Segment {
-    fn from_str(s: &str) -> Option<Segment> {
-        use Segment::*;
-        match s {
-            "argument" => Some(Argument),
-            "local" => Some(Local),
-            "static" => Some(Static),
-            "constant" => Some(Constant),
-            "this" => Some(This),
-            "that" => Some(That),
-            "pointer" => Some(Pointer),
-            "temp" => Some(Temp),
-            _ => None
-        }
-    }
-}
-
 impl<'a> Command<'a> {
     fn from_line(line: &'a str) -> Self {
         assert!(!line.is_empty());
@@ -57,16 +29,12 @@ impl<'a> Command<'a> {
             "add" | "sub" | "eq" | "gt" | "lt" | "and" | "or" => Command::BinaryOp(tokens[0]),
             "push"  => {
                 assert_eq!(tokens.len(), 3);
-                let segment = Segment::from_str(tokens[1]).unwrap();
-                let index = tokens[2].parse::<i16>().unwrap();
-                Command::Push(segment, index)
+                Command::Push{ segment: tokens[1], index: tokens[2].parse::<i16>().unwrap() }
             },
             "pop"   => {
                 assert_eq!(tokens.len(), 3);
-                let segment = Segment::from_str(tokens[1]).unwrap();
-                let index = tokens[2].parse::<i16>().unwrap();
-                Command::Pop(segment, index)
-            }
+                Command::Pop{ segment: tokens[1], index: tokens[2].parse::<i16>().unwrap() }
+            },
             _ => panic!("unknown command: {}", line)
         }
     }
@@ -144,22 +112,22 @@ fn load(out: &mut std::fmt::Write, symbol: &str) -> std::fmt::Result {
     Ok(())
 }
 
-fn set_segment_index_address_to(out: &mut std::fmt::Write, segment: &Segment, index: i16, dst: char) -> std::fmt::Result {
+fn set_segment_index_address_to(out: &mut std::fmt::Write, segment: &str, index: i16, dst: char) -> std::fmt::Result {
     writeln!(out, "@{}\nD=A", index)?; // write 'index' to D-register
-    use Segment::*;
     match segment {
-        Constant => panic!("constant is pseudo segment"),
-        Static   => panic!("not implemented"),
-        Argument | Local | This | That => {
-            let symbol = match segment { Argument => "ARG", Local => "LCL", This => "THIS", That => "THAT", _ => panic!("invalid segment") };
+        "constant" => panic!("constant is pseudo segment"),
+        "static"   => panic!("not implemented"),
+        "argument" | "local" | "this" | "that" => {
+            let symbol = match segment { "argument" => "ARG", "local" => "LCL", "this" => "THIS", "that" => "THAT", _ => panic!("invalid segment") };
             writeln!(out, "@{}", symbol)?;
             writeln!(out, "{}=D+M", dst)?;
         },
-        Pointer | Temp => {
-            let symbol = match segment { Pointer => "R3", Temp => "R5", _ => panic!("invalid segment") };
+        "pointer" | "temp" => {
+            let symbol = match segment { "pointer" => "R3", "temp" => "R5", _ => panic!("invalid segment") };
             writeln!(out, "@{}", symbol)?;
             writeln!(out, "{}=D+A", dst)?;
-        }
+        },
+        _ => panic!("unknown segment")
     };
     Ok(())
 }
@@ -187,10 +155,10 @@ pub fn compile(out: &mut std::fmt::Write, source: &str) -> std::fmt::Result {
                 }
                 push(out)?;
             },
-            Command::Push(segment, index) => {
+            Command::Push{ segment, index } => {
                 // D = segment[index]
-                match segment {
-                    Segment::Constant => { writeln!(out, "@{}\nD=A", index)?; },
+                match *segment {
+                    "constant" => { writeln!(out, "@{}\nD=A", index)?; },
                     _ => {
                         set_segment_index_address_to(out, segment, *index, 'A')?;
                         writeln!(out, "D=M")?;
@@ -198,7 +166,7 @@ pub fn compile(out: &mut std::fmt::Write, source: &str) -> std::fmt::Result {
                 }
                 push(out)?;
             },
-            Command::Pop(segment, index) => {
+            Command::Pop{ segment, index } => {
                 // *R13 = segment + index
                 set_segment_index_address_to(out, segment, *index, 'D')?;
                 writeln!(out, "@R13")?;
@@ -239,7 +207,7 @@ mod tests {
     }
 
     #[test]
-    fn simple_add() {
+    fn add() {
         let source = "
         push constant 7
         push constant 8
@@ -248,4 +216,13 @@ mod tests {
         assert_eq!(run_machine(source, 100), 15);
     }
 
+    #[test]
+    fn sub() {
+        let source = "
+        push constant 327
+        push constant 193
+        sub
+        ";
+        assert_eq!(run_machine(source, 100), 327 - 193);
+    }
 }
