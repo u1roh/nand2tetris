@@ -1,4 +1,5 @@
 
+#[derive(Debug)]
 enum Command<'a> {
     // arithmetic and logical commands
     BinaryOp(&'a str),
@@ -74,38 +75,102 @@ static VM_TERMINAL_ASM: &str = "
 0;JMP
 ";
 
+static PUSH_ASM: &str = "
+// <STACK PUSH>
+// **SP = D
+@SP
+A=M
+M=D
+// *SP = *SP + 1
+@SP
+M=M+1
+// </STACK PUSH>
+";
+
+static POP_ASM: &str = "
+// <STACK POP>
+// *SP = *SP - 1
+@SP
+M=M-1
+// D = **SP
+@SP
+A=M
+D=M
+// </STACK POP>
+";
+
+struct VmWriter<'a> { out: &'a mut std::fmt::Write }
+
+impl<'a> VmWriter<'a> {
+    fn write(&mut self, s: &str) {
+        writeln!(self.out, "{}", s).unwrap();
+    }
+    fn write_lines(&mut self, lines: &[&str]) {
+        for line in lines { self.write(line); }
+    }
+    fn push(&mut self) {
+        self.write(PUSH_ASM)
+    }
+    fn pop(&mut self) {
+        self.write(POP_ASM)
+    }
+    // RAM[symbol] = D
+    fn store(&mut self, symbol: &str) {
+        self.write_lines(&[
+            &format!("@{}", symbol),
+            "M=D"
+        ])
+    }
+    // D = RAM[symbol]
+    fn load(&mut self, symbol: &str) {
+        self.write_lines(&[
+            &format!("@{}", symbol),
+            "D=M"
+        ])
+    }
+    fn set_segment_index_address_to(&mut self, segment: &str, index: i16, dst: char) {
+        // write 'index' to D-register
+        self.write_lines(&[&format!("@{}", index), "D=A"]);
+        match segment {
+            "constant" => panic!("constant is pseudo segment"),
+            "static"   => panic!("not implemented"),
+            "argument" | "local" | "this" | "that" => {
+                let symbol = match segment { "argument" => "ARG", "local" => "LCL", "this" => "THIS", "that" => "THAT", _ => panic!("invalid segment") };
+                self.write_lines(&[
+                    &format!("@{}", symbol),
+                    &format!("{}=D+M", dst)
+                ]);
+            },
+            "pointer" | "temp" => {
+                let symbol = match segment { "pointer" => "R3", "temp" => "R5", _ => panic!("invalid segment") };
+                self.write_lines(&[
+                    &format!("@{}", symbol),
+                    &format!("{}=D+A", dst)
+                ]);
+            },
+            _ => panic!("unknown segment")
+        }
+    }
+
+}
+
 fn push(out: &mut std::fmt::Write) -> std::fmt::Result {
-    // **SP = D
-    writeln!(out, "@SP")?;
-    writeln!(out, "A=M")?;
-    writeln!(out, "M=D")?;
-
-    // *SP = *SP + 1
-    writeln!(out, "@SP")?;
-    writeln!(out, "M=M+1")?;
-
-    Ok(())
+    out.write_str(PUSH_ASM)
+    //writeln!(out, PUSH_ASM)
 }
 
 fn pop(out: &mut std::fmt::Write) -> std::fmt::Result {
-    // *SP = *SP - 1
-    writeln!(out, "@SP")?;
-    writeln!(out, "M=M-1")?;
-
-    // D = **SP
-    writeln!(out, "@SP")?;
-    writeln!(out, "A=M")?;
-    writeln!(out, "D=M")?;
-
-    Ok(())
+    out.write_str(POP_ASM)
 }
 
+// RAM[symbol] = D
 fn store(out: &mut std::fmt::Write, symbol: &str) -> std::fmt::Result {
     writeln!(out, "@{}", symbol)?;
     writeln!(out, "M=D")?;
     Ok(())
 }
 
+// D = RAM[symbol]
 fn load(out: &mut std::fmt::Write, symbol: &str) -> std::fmt::Result {
     writeln!(out, "@{}", symbol)?;
     writeln!(out, "D=M")?;
@@ -132,7 +197,7 @@ fn set_segment_index_address_to(out: &mut std::fmt::Write, segment: &str, index:
     Ok(())
 }
 
-pub fn compile(out: &mut std::fmt::Write, source: &str) -> std::fmt::Result {
+pub fn compile(out: &mut std::fmt::Write, source: &str) {
     let commands = source.split("\n")
         .map(|line| if let Some(i) = line.find("//") { &line[..i] } else { line })  // remove comment
         .map(|line| line.trim())  // remove white spaces of head and tail
@@ -140,51 +205,58 @@ pub fn compile(out: &mut std::fmt::Write, source: &str) -> std::fmt::Result {
         .map(Command::from_line)
         .collect::<Vec<_>>();
 
-    writeln!(out, "{}", VM_SETUP_ASM)?;
+    let mut out = VmWriter{ out: out };
+    out.write(VM_SETUP_ASM);
     for command in &commands {
+        out.write(&format!("// <{:?}>", command));
         match command {
             Command::BinaryOp(name) => {
-                pop(out)?;
-                store(out, "R13")?;
-                pop(out)?;
-                writeln!(out, "@R13")?;
-                match *name {
-                    "add" => writeln!(out, "D=D+M")?,
-                    "sub" => writeln!(out, "D=D-M")?,
+                let mnemonic = match *name {
+                    "add" => "D+M",
+                    "sub" => "D-M",
+                    "and" => "D&M",
                     _ => panic!("unknown command")
-                }
-                push(out)?;
+                };
+                out.pop();
+                out.store("R13");
+                out.pop();
+                out.write("@R13");
+                out.write(&format!("D={}", mnemonic));
+                out.push();
             },
             Command::Push{ segment, index } => {
                 // D = segment[index]
                 match *segment {
-                    "constant" => { writeln!(out, "@{}\nD=A", index)?; },
+                    "constant" => {
+                        out.write(&format!("@{}", index));
+                        out.write("D=A");
+                    },
                     _ => {
-                        set_segment_index_address_to(out, segment, *index, 'A')?;
-                        writeln!(out, "D=M")?;
+                        out.set_segment_index_address_to(segment, *index, 'A');
+                        out.write("D=M");
                     }
                 }
-                push(out)?;
+                out.push();
             },
             Command::Pop{ segment, index } => {
                 // *R13 = segment + index
-                set_segment_index_address_to(out, segment, *index, 'D')?;
-                writeln!(out, "@R13")?;
-                writeln!(out, "M=D")?;
+                out.set_segment_index_address_to(segment, *index, 'D');
+                out.write("@R13");
+                out.write("M=D");
 
-                pop(out)?;
+                out.pop();
 
                 // **R13 = D
-                writeln!(out, "@R13")?;
-                writeln!(out, "A=M")?;
-                writeln!(out, "M=D")?;
+                out.write("@R13");
+                out.write("A=M");
+                out.write("M=D");
             }
             _ => panic!("not implemented")
 
         }
+        out.write(&format!("// </{:?}>", command));
     }
-    write!(out, "{}", VM_TERMINAL_ASM)?;
-    Ok(())
+    out.write(VM_TERMINAL_ASM);
 }
 
 #[cfg(test)]
@@ -224,5 +296,15 @@ mod tests {
         sub
         ";
         assert_eq!(run_machine(source, 100), 327 - 193);
+    }
+
+    #[test]
+    fn and() {
+        let source = "
+        push constant 826
+        push constant 294
+        and
+        ";
+        assert_eq!(run_machine(source, 100), 826 & 294);
     }
 }
