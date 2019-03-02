@@ -1,9 +1,12 @@
 
 #[derive(Debug)]
 enum Command<'a> {
-    // arithmetic and logical commands
+    // arithmetic commands
     BinaryOp(&'a str),
     UnaryOp(&'a str),
+
+    // logical commands
+    LogicalOp(&'a str), // eq, gt, lt
 
     // memory access commands
     Push{ segment: &'a str, index: i16 },
@@ -27,7 +30,8 @@ impl<'a> Command<'a> {
         assert!(tokens.len() != 0);
         match tokens[0] {
             "neg" | "not" => Command::UnaryOp(tokens[0]),
-            "add" | "sub" | "eq" | "gt" | "lt" | "and" | "or" => Command::BinaryOp(tokens[0]),
+            "add" | "sub" | "and" | "or" => Command::BinaryOp(tokens[0]),
+            "eq" | "gt" | "lt" => Command::LogicalOp(tokens[0]),
             "push"  => {
                 assert_eq!(tokens.len(), 3);
                 Command::Push{ segment: tokens[1], index: tokens[2].parse::<i16>().unwrap() }
@@ -114,6 +118,26 @@ impl<'a> VmWriter<'a> {
     fn pop(&mut self) {
         self.write(POP_ASM)
     }
+    fn binary_op(&mut self, op: char) {
+        self.pop();
+        self.store("R13");
+        self.pop();
+        self.write("@R13");
+        self.write(&format!("D=D{}M", op));
+    }
+    fn logical_op(&mut self, jmp: &str, label_id: usize) {
+        let if_true = format!("IF_TRUE_{}", label_id);
+        let if_end  = format!("IF_END_{}", label_id);
+        self.binary_op('-');
+        self.write(&format!("@{}", if_true));
+        self.write(&format!("D;{}", jmp));
+        self.write("D=0");
+        self.write(&format!("@{}", if_end));
+        self.write("0;JMP");
+        self.write(&format!("({})", if_true));
+        self.write("D=-1");
+        self.write(&format!("({})", if_end));
+    }
     // RAM[symbol] = D
     fn store(&mut self, symbol: &str) {
         self.write_lines(&[
@@ -151,50 +175,6 @@ impl<'a> VmWriter<'a> {
             _ => panic!("unknown segment")
         }
     }
-
-}
-
-fn push(out: &mut std::fmt::Write) -> std::fmt::Result {
-    out.write_str(PUSH_ASM)
-    //writeln!(out, PUSH_ASM)
-}
-
-fn pop(out: &mut std::fmt::Write) -> std::fmt::Result {
-    out.write_str(POP_ASM)
-}
-
-// RAM[symbol] = D
-fn store(out: &mut std::fmt::Write, symbol: &str) -> std::fmt::Result {
-    writeln!(out, "@{}", symbol)?;
-    writeln!(out, "M=D")?;
-    Ok(())
-}
-
-// D = RAM[symbol]
-fn load(out: &mut std::fmt::Write, symbol: &str) -> std::fmt::Result {
-    writeln!(out, "@{}", symbol)?;
-    writeln!(out, "D=M")?;
-    Ok(())
-}
-
-fn set_segment_index_address_to(out: &mut std::fmt::Write, segment: &str, index: i16, dst: char) -> std::fmt::Result {
-    writeln!(out, "@{}\nD=A", index)?; // write 'index' to D-register
-    match segment {
-        "constant" => panic!("constant is pseudo segment"),
-        "static"   => panic!("not implemented"),
-        "argument" | "local" | "this" | "that" => {
-            let symbol = match segment { "argument" => "ARG", "local" => "LCL", "this" => "THIS", "that" => "THAT", _ => panic!("invalid segment") };
-            writeln!(out, "@{}", symbol)?;
-            writeln!(out, "{}=D+M", dst)?;
-        },
-        "pointer" | "temp" => {
-            let symbol = match segment { "pointer" => "R3", "temp" => "R5", _ => panic!("invalid segment") };
-            writeln!(out, "@{}", symbol)?;
-            writeln!(out, "{}=D+A", dst)?;
-        },
-        _ => panic!("unknown segment")
-    };
-    Ok(())
 }
 
 pub fn compile(out: &mut std::fmt::Write, source: &str) {
@@ -205,26 +185,46 @@ pub fn compile(out: &mut std::fmt::Write, source: &str) {
         .map(Command::from_line)
         .collect::<Vec<_>>();
 
+    let mut label_counter = 0;
     let mut out = VmWriter{ out: out };
     out.write(VM_SETUP_ASM);
     for command in &commands {
         out.write(&format!("// <{:?}>", command));
         match command {
-            Command::BinaryOp(name) => {
+            Command::UnaryOp(name) => {
                 let mnemonic = match *name {
-                    "add" => "D+M",
-                    "sub" => "D-M",
-                    "and" => "D&M",
-                    _ => panic!("unknown command")
+                    "neg" => "-D",
+                    "not" => "!D",
+                    _ => panic!("unknown unary operation: {}", name)
                 };
                 out.pop();
-                out.store("R13");
-                out.pop();
-                out.write("@R13");
                 out.write(&format!("D={}", mnemonic));
                 out.push();
             },
+            Command::BinaryOp(name) => {
+                let op = match *name {
+                    "add" => '+',
+                    "sub" => '-',
+                    "and" => '&',
+                    "or"  => '|',
+                    _ => panic!("unknown binary operation: {}", name)
+                };
+                out.binary_op(op);
+                out.push();
+            },
+            Command::LogicalOp(name) => {
+                let jmp = match *name {
+                    "eq" => "JEQ",
+                    "gt" => "JGT",
+                    "lt" => panic!("not implemented: logical operation '{}'", name),
+                    _ => panic!("unknown logical operation: {}", name)
+                };
+                out.logical_op(jmp, label_counter);
+                out.push();
+                label_counter += 1;
+            },
             Command::Push{ segment, index } => {
+                assert!(*index >= 0);
                 // D = segment[index]
                 match *segment {
                     "constant" => {
@@ -239,6 +239,7 @@ pub fn compile(out: &mut std::fmt::Write, source: &str) {
                 out.push();
             },
             Command::Pop{ segment, index } => {
+                assert!(*index >= 0);
                 // *R13 = segment + index
                 out.set_segment_index_address_to(segment, *index, 'D');
                 out.write("@R13");
@@ -251,8 +252,7 @@ pub fn compile(out: &mut std::fmt::Write, source: &str) {
                 out.write("A=M");
                 out.write("M=D");
             }
-            _ => panic!("not implemented")
-
+            _ => panic!("not implemented: {:?}", command)
         }
         out.write(&format!("// </{:?}>", command));
     }
@@ -269,6 +269,7 @@ mod tests {
     fn run_machine(vm_source: &str, nclock: usize) -> i16 {
         let mut asm_source = String::new();
         compile(&mut asm_source, vm_source);
+        println!("{}", asm_source);
 
         let bin = asm::asm(&asm_source).unwrap();
         let mut machine = Machine::new(&bin);
@@ -278,33 +279,101 @@ mod tests {
         machine.read_memory(machine.read_memory(0) - 1) // top of the stack
     }
 
+    fn test(nclock: usize, expected: i16, source: &str) {
+        assert_eq!(expected, run_machine(source, nclock));
+    }
+
     #[test]
     fn add() {
-        let source = "
+        test(100, 15, "
         push constant 7
         push constant 8
         add
-        ";
-        assert_eq!(run_machine(source, 100), 15);
+        ");
     }
 
     #[test]
     fn sub() {
-        let source = "
+        test(100, 327 - 193,"
         push constant 327
         push constant 193
         sub
-        ";
-        assert_eq!(run_machine(source, 100), 327 - 193);
+        ");
     }
 
     #[test]
     fn and() {
-        let source = "
+        test(100, 826 & 294, "
         push constant 826
         push constant 294
         and
-        ";
-        assert_eq!(run_machine(source, 100), 826 & 294);
+        ");
+    }
+
+    #[test]
+    fn or() {
+        test(100, 826 | 294, "
+        push constant 826
+        push constant 294
+        or
+        ");
+    }
+
+    #[test]
+    fn eq() {
+        test(100, -1, "
+        push constant 123
+        push constant 123
+        eq
+        ");
+        test(100, 0, "
+        push constant 100
+        push constant 200
+        eq
+        ");
+    }
+
+    #[test]
+    fn gt() {
+        test(100, -1, "
+        push constant 826
+        push constant 294
+        gt
+        ");
+        test(100, 0, "
+        push constant 1
+        push constant 2
+        gt
+        ");
+        test(100, 0, "
+        push constant 3
+        push constant 3
+        gt
+        ");
+    }
+
+    #[test]
+    fn neg() {
+        test(100, -123, "
+        push constant 123
+        neg
+        ");
+        test(100, 321, "
+        push constant 321
+        neg
+        neg
+        ");
+    }
+
+    #[test]
+    fn not() {
+        test(100, !0, "
+        push constant 0
+        not
+        ");
+        test(100, !123, "
+        push constant 123
+        not
+        ");
     }
 }
