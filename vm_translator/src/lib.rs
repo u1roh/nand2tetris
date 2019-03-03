@@ -115,9 +115,9 @@ D=M
 // </STACK POP>
 ";
 
-struct VmWriter<'a> { out: &'a mut std::fmt::Write, filename: &'a str }
+struct AsmWriter<'a> { out: &'a mut std::fmt::Write, filename: &'a str }
 
-impl<'a> VmWriter<'a> {
+impl<'a> AsmWriter<'a> {
     fn write(&mut self, s: &str) {
         writeln!(self.out, "{}", s).unwrap();
     }
@@ -207,7 +207,7 @@ pub fn compile(out: &mut std::fmt::Write, source_filename: &str, source: &str) {
         .collect::<Vec<_>>();
 
     let mut label_counter = 0;
-    let mut out = VmWriter{ out: out, filename: source_filename };
+    let mut out = AsmWriter{ out: out, filename: source_filename };
     out.write(VM_SETUP_ASM);
     for command in &commands {
         out.write(&format!("// <{:?}>", command));
