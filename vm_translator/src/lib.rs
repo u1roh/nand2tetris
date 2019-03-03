@@ -103,7 +103,7 @@ D=M
 // </STACK POP>
 ";
 
-struct VmWriter<'a> { out: &'a mut std::fmt::Write }
+struct VmWriter<'a> { out: &'a mut std::fmt::Write, filename: &'a str }
 
 impl<'a> VmWriter<'a> {
     fn write(&mut self, s: &str) {
@@ -157,7 +157,10 @@ impl<'a> VmWriter<'a> {
         self.write_lines(&[&format!("@{}", index), "D=A"]);
         match segment {
             "constant" => panic!("constant is pseudo segment"),
-            "static"   => panic!("not implemented"),
+            "static" => {
+                self.write(&format!("@{}.{}", self.filename, index));
+                if dst != 'A' { self.write(&format!("{}=A", dst)) }
+            },
             "argument" | "local" | "this" | "that" => {
                 let symbol = match segment { "argument" => "ARG", "local" => "LCL", "this" => "THIS", "that" => "THAT", _ => panic!("invalid segment") };
                 self.write_lines(&[
@@ -177,7 +180,7 @@ impl<'a> VmWriter<'a> {
     }
 }
 
-pub fn compile(out: &mut std::fmt::Write, source: &str) {
+pub fn compile(out: &mut std::fmt::Write, source_filename: &str, source: &str) {
     let commands = source.split("\n")
         .map(|line| if let Some(i) = line.find("//") { &line[..i] } else { line })  // remove comment
         .map(|line| line.trim())  // remove white spaces of head and tail
@@ -186,7 +189,7 @@ pub fn compile(out: &mut std::fmt::Write, source: &str) {
         .collect::<Vec<_>>();
 
     let mut label_counter = 0;
-    let mut out = VmWriter{ out: out };
+    let mut out = VmWriter{ out: out, filename: source_filename };
     out.write(VM_SETUP_ASM);
     for command in &commands {
         out.write(&format!("// <{:?}>", command));
@@ -268,7 +271,7 @@ mod tests {
 
     fn run_machine(vm_source: &str, nclock: usize) -> i16 {
         let mut asm_source = String::new();
-        compile(&mut asm_source, vm_source);
+        compile(&mut asm_source, "test_file", vm_source);
         println!("{}", asm_source);
 
         let bin = asm::asm(&asm_source).unwrap();
@@ -467,6 +470,15 @@ mod tests {
         pop pointer 0
         push pointer 0
         push this 0
+        ");
+    }
+
+    #[test]
+    fn static_segment() {
+        test(200, 123, "
+        push constant 123
+        pop static 3
+        push static 3
         ");
     }
 }
