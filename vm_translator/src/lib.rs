@@ -36,9 +36,21 @@ impl<'a> Command<'a> {
                 assert_eq!(tokens.len(), 3);
                 Command::Push{ segment: tokens[1], index: tokens[2].parse::<i16>().unwrap() }
             },
-            "pop"   => {
+            "pop" => {
                 assert_eq!(tokens.len(), 3);
                 Command::Pop{ segment: tokens[1], index: tokens[2].parse::<i16>().unwrap() }
+            },
+            "label" => {
+                assert_eq!(tokens.len(), 2);
+                Command::Label(tokens[1])
+            },
+            "if-goto" => {
+                assert_eq!(tokens.len(), 2);
+                Command::IfGoto(tokens[1])
+            },
+            "goto" => {
+                assert_eq!(tokens.len(), 2);
+                Command::Goto(tokens[1])
             },
             _ => panic!("unknown command: {}", line)
         }
@@ -112,6 +124,12 @@ impl<'a> VmWriter<'a> {
     fn write_lines(&mut self, lines: &[&str]) {
         for line in lines { self.write(line); }
     }
+    fn label(&mut self, label: &str) {
+        writeln!(self.out, "({})", label).unwrap();
+    }
+    fn symbol(&mut self, symbol: &str) {
+        writeln!(self.out, "@{}", symbol).unwrap();
+    }
     fn push(&mut self) {
         self.write(PUSH_ASM)
     }
@@ -129,14 +147,14 @@ impl<'a> VmWriter<'a> {
         let if_true = format!("IF_TRUE_{}", label_id);
         let if_end  = format!("IF_END_{}", label_id);
         self.binary_op('-');
-        self.write(&format!("@{}", if_true));
+        self.symbol(&if_true);
         self.write(&format!("D;{}", jmp));
         self.write("D=0");
-        self.write(&format!("@{}", if_end));
+        self.symbol(&if_end);
         self.write("0;JMP");
-        self.write(&format!("({})", if_true));
+        self.label(&if_true);
         self.write("D=-1");
-        self.write(&format!("({})", if_end));
+        self.label(&if_end);
     }
     // RAM[symbol] = D
     fn store(&mut self, symbol: &str) {
@@ -254,7 +272,19 @@ pub fn compile(out: &mut std::fmt::Write, source_filename: &str, source: &str) {
                 out.write("@R13");
                 out.write("A=M");
                 out.write("M=D");
-            }
+            },
+            Command::Label(symbol) => {
+                out.label(symbol);
+            },
+            Command::Goto(symbol) => {
+                out.symbol(symbol);
+                out.write("0;JMP");
+            },
+            Command::IfGoto(symbol) => {
+                out.pop();
+                out.symbol(symbol);
+                out.write("D;JNE");
+            },
             _ => panic!("not implemented: {:?}", command)
         }
         out.write(&format!("// </{:?}>", command));
@@ -480,5 +510,28 @@ mod tests {
         pop static 3
         push static 3
         ");
+    }
+
+    #[test]
+    fn conditional() {
+        let vm = "
+        if-goto L1
+        push constant 123
+        goto L2
+        label L1
+        push constant 456
+        label L2
+        push constant 1
+        add
+        ";
+        test(200, 124, &format!("
+        push constant 0
+        {}
+        ", vm));
+        test(200, 457, &format!("
+        push constant 0
+        not
+        {}
+        ", vm));
     }
 }
