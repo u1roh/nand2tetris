@@ -216,7 +216,7 @@ pub fn compile(out: &mut std::fmt::Write, source: &str) {
                 let jmp = match *name {
                     "eq" => "JEQ",
                     "gt" => "JGT",
-                    "lt" => panic!("not implemented: logical operation '{}'", name),
+                    "lt" => "JLT",
                     _ => panic!("unknown logical operation: {}", name)
                 };
                 out.logical_op(jmp, label_counter);
@@ -274,7 +274,9 @@ mod tests {
         let bin = asm::asm(&asm_source).unwrap();
         let mut machine = Machine::new(&bin);
         for _ in 0 .. nclock {
+            println!("{}", inst::Instruction::decode(machine.next_instruction()));
             machine.clock(false);
+            println!("SP = {}, STACK TOP = {}", machine.read_memory(0), machine.read_memory(machine.read_memory(0) - 1));
         }
         machine.read_memory(machine.read_memory(0) - 1) // top of the stack
     }
@@ -353,6 +355,25 @@ mod tests {
     }
 
     #[test]
+    fn lt() {
+        test(100, 0, "
+        push constant 826
+        push constant 294
+        lt
+        ");
+        test(100, -1, "
+        push constant 1
+        push constant 2
+        lt
+        ");
+        test(100, 0, "
+        push constant 3
+        push constant 3
+        lt
+        ");
+    }
+
+    #[test]
     fn neg() {
         test(100, -123, "
         push constant 123
@@ -374,6 +395,78 @@ mod tests {
         test(100, !123, "
         push constant 123
         not
+        ");
+    }
+
+    #[test]
+    fn arithmetic() {
+        test(100, 1 - (2 + 3), "
+        push constant 1
+        push constant 2
+        push constant 3
+        add
+        sub
+        ");
+        test(100, (1 + 2) - 3, "
+        push constant 1
+        push constant 2
+        add
+        push constant 3
+        sub
+        ");
+        test(200, (1 + 3) - (5 + 7), "
+        push constant 1
+        push constant 3
+        add
+        push constant 5
+        push constant 7
+        add
+        sub
+        ");
+    }
+
+    #[test]
+    fn pointer_segment() {
+        test(100, 123, "
+        push constant 123
+        pop pointer 0
+        push pointer 0
+        ");
+        test(100, 456, "
+        push constant 456
+        pop pointer 1
+        push pointer 1
+        ");
+    }
+
+    #[test]
+    fn this_segment() {
+        test(100, 789, "
+        push constant 789
+        pop this 0
+        push this 0
+        ");
+        test(100, 111, "
+        push constant 111
+        pop this 1
+        push this 1
+        ");
+        test(100, 3001, "
+        push constant 3000
+        push constant 1
+        add
+        pop pointer 0
+        push pointer 0
+        ");
+        test(200, 789, "
+        push constant 789
+        pop this 1
+        push pointer 0
+        push constant 1
+        add
+        pop pointer 0
+        push pointer 0
+        push this 0
         ");
     }
 }

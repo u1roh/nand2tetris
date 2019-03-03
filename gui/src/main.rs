@@ -40,6 +40,7 @@ fn main() {
             let vm_source = read_source(&args[1]);
             let mut asm_source = String::new();
             vm_translator::compile(&mut asm_source, &vm_source);
+            println!("*** VM to ASM ***\n{}", asm_source);
             asm::asm(&asm_source).expect("failed to compile asm to binary instructions.")
         },
         _ => panic!("unknown extension")

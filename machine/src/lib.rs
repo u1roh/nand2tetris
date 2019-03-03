@@ -85,6 +85,9 @@ impl Machine {
         self.data_memory.clock(self.cpu.addressM(), cpu_out.outM, cpu_out.writeM);
         self.cpu.clock(cpu_input);
     }
+    pub fn next_instruction(&self) -> i16 {
+        debug::word2int(self.instruction_memory.out(self.cpu.pc()))
+    }
     pub fn read_memory(&self, address: i16) -> i16 {
         debug::word2int(self.data_memory.out(debug::int2word(address)))
     }

@@ -268,6 +268,17 @@ mod tests {
         } }
     }
 
+    #[test]
+    fn test_not() {
+        let mut cpu = Cpu::new();
+        let not_D = make_input(0, CInstruction(Computation::NotD, 0, Jump::Null));
+        let values = [0, 1, 5, -4];
+        for &d in &values {
+            cpu.clock(set_D_input(d));
+            assert_eq!(word2int(cpu.out(not_D).outM), !d);
+        }
+    }
+
     fn get_pc_address(address: i16, comp: Computation, jump: Jump) -> i16 {
         let mut cpu = Cpu::new();
         cpu.clock(make_input(0, AInstruction(address)));
