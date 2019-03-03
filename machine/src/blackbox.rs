@@ -2,17 +2,21 @@ use crate::given::Word;
 use crate::given::debug::{int2word, word2int};
 
 pub struct ROM32K {
-    data: Box<[i16; 32 * 1024]>
+    data: Box<[i16; 32 * 1024]>,
+    len: usize
 }
 
 impl ROM32K {
     pub fn new(data: &[i16]) -> Self {
-        let mut rom = Self{ data: Box::new([0; 32 * 1024]) };
+        let mut rom = Self{ data: Box::new([0; 32 * 1024]), len: data.len() };
         for i in 0 .. data.len() { rom.data[i] = data[i]; }
         rom
     }
     pub fn out(&self, address: Word) -> Word {
         int2word(self.data[word2int(address) as usize])
+    }
+    pub fn is_terminated(&self, address: Word) -> bool {
+        word2int(address) as usize >= self.len
     }
 }
 

@@ -57,34 +57,6 @@ impl<'a> Command<'a> {
     }
 }
 
-
-static VM_SETUP_ASM: &str = "
-@256
-D=A
-@SP
-M=D
-
-@300
-D=A
-@LCL
-M=D
-
-@400
-D=A
-@ARG
-M=D
-
-@3000
-D=A
-@THIS
-M=D
-
-@3010
-D=A
-@THAT
-M=D
-";
-
 static VM_TERMINAL_ASM: &str = "
 (INFINITE_LOOP)
 @INFINITE_LOOP
@@ -115,9 +87,16 @@ D=M
 // </STACK POP>
 ";
 
-struct AsmWriter<'a> { out: &'a mut std::fmt::Write, filename: &'a str }
+struct AsmWriter<'a> {
+    out: &'a mut std::fmt::Write,
+    filename: &'a str,
+    label_id: usize
+}
 
 impl<'a> AsmWriter<'a> {
+    fn new(out: &'a mut std::fmt::Write, filename: &'a str) -> Self {
+        Self{ out: out, filename: filename, label_id: 0 }
+    }
     fn write(&mut self, s: &str) {
         writeln!(self.out, "{}", s).unwrap();
     }
@@ -129,6 +108,13 @@ impl<'a> AsmWriter<'a> {
     }
     fn symbol(&mut self, symbol: &str) {
         writeln!(self.out, "@{}", symbol).unwrap();
+    }
+    fn set_ram(&mut self, symbol: &str, value: i16) {
+        writeln!(self.out, "@{}\nD=A\n@{}\nM=D", value, symbol).unwrap();
+    }
+    // RAM[symbol] = D
+    fn store(&mut self, symbol: &str) {
+        writeln!(self.out, "@{}\nM=D", symbol).unwrap();
     }
     fn push(&mut self) {
         self.write(PUSH_ASM)
@@ -143,9 +129,9 @@ impl<'a> AsmWriter<'a> {
         self.write("@R13");
         self.write(&format!("D=D{}M", op));
     }
-    fn logical_op(&mut self, jmp: &str, label_id: usize) {
-        let if_true = format!("IF_TRUE_{}", label_id);
-        let if_end  = format!("IF_END_{}", label_id);
+    fn logical_op(&mut self, jmp: &str) {
+        let if_true = format!("IF_TRUE_{}", self.label_id);
+        let if_end  = format!("IF_END_{}", self.label_id);
         self.binary_op('-');
         self.symbol(&if_true);
         self.write(&format!("D;{}", jmp));
@@ -155,20 +141,7 @@ impl<'a> AsmWriter<'a> {
         self.label(&if_true);
         self.write("D=-1");
         self.label(&if_end);
-    }
-    // RAM[symbol] = D
-    fn store(&mut self, symbol: &str) {
-        self.write_lines(&[
-            &format!("@{}", symbol),
-            "M=D"
-        ])
-    }
-    // D = RAM[symbol]
-    fn load(&mut self, symbol: &str) {
-        self.write_lines(&[
-            &format!("@{}", symbol),
-            "D=M"
-        ])
+        self.label_id += 1;
     }
     fn set_segment_index_address_to(&mut self, segment: &str, index: i16, dst: char) {
         // write 'index' to D-register
@@ -198,98 +171,106 @@ impl<'a> AsmWriter<'a> {
     }
 }
 
-pub fn compile(out: &mut std::fmt::Write, source_filename: &str, source: &str) {
+fn translate_command(out: &mut AsmWriter, command: &Command) {
+    out.write(&format!("// <{:?}>", command));
+    match command {
+        Command::UnaryOp(name) => {
+            let mnemonic = match *name {
+                "neg" => "-D",
+                "not" => "!D",
+                _ => panic!("unknown unary operation: {}", name)
+            };
+            out.pop();
+            out.write(&format!("D={}", mnemonic));
+            out.push();
+        },
+        Command::BinaryOp(name) => {
+            let op = match *name {
+                "add" => '+',
+                "sub" => '-',
+                "and" => '&',
+                "or"  => '|',
+                _ => panic!("unknown binary operation: {}", name)
+            };
+            out.binary_op(op);
+            out.push();
+        },
+        Command::LogicalOp(name) => {
+            let jmp = match *name {
+                "eq" => "JEQ",
+                "gt" => "JGT",
+                "lt" => "JLT",
+                _ => panic!("unknown logical operation: {}", name)
+            };
+            out.logical_op(jmp);
+            out.push();
+        },
+        Command::Push{ segment, index } => {
+            assert!(*index >= 0);
+            // D = segment[index]
+            match *segment {
+                "constant" => {
+                    out.write(&format!("@{}", index));
+                    out.write("D=A");
+                },
+                _ => {
+                    out.set_segment_index_address_to(segment, *index, 'A');
+                    out.write("D=M");
+                }
+            }
+            out.push();
+        },
+        Command::Pop{ segment, index } => {
+            assert!(*index >= 0);
+            // *R13 = segment + index
+            out.set_segment_index_address_to(segment, *index, 'D');
+            out.store("R13");
+
+            out.pop();
+
+            // **R13 = D
+            out.write("@R13");
+            out.write("A=M");
+            out.write("M=D");
+        },
+        Command::Label(symbol) => {
+            out.label(symbol);
+        },
+        Command::Goto(symbol) => {
+            out.symbol(symbol);
+            out.write("0;JMP");
+        },
+        Command::IfGoto(symbol) => {
+            out.pop();
+            out.symbol(symbol);
+            out.write("D;JNE");
+        },
+        _ => panic!("not implemented: {:?}", command)
+    }
+    out.write(&format!("// </{:?}>", command));
+}
+
+fn translate_vm_source(out: &mut AsmWriter, source: &str) {
     let commands = source.split("\n")
         .map(|line| if let Some(i) = line.find("//") { &line[..i] } else { line })  // remove comment
         .map(|line| line.trim())  // remove white spaces of head and tail
         .filter(|line| !line.is_empty())    // filter empty line
         .map(Command::from_line)
         .collect::<Vec<_>>();
-
-    let mut label_counter = 0;
-    let mut out = AsmWriter{ out: out, filename: source_filename };
-    out.write(VM_SETUP_ASM);
     for command in &commands {
-        out.write(&format!("// <{:?}>", command));
-        match command {
-            Command::UnaryOp(name) => {
-                let mnemonic = match *name {
-                    "neg" => "-D",
-                    "not" => "!D",
-                    _ => panic!("unknown unary operation: {}", name)
-                };
-                out.pop();
-                out.write(&format!("D={}", mnemonic));
-                out.push();
-            },
-            Command::BinaryOp(name) => {
-                let op = match *name {
-                    "add" => '+',
-                    "sub" => '-',
-                    "and" => '&',
-                    "or"  => '|',
-                    _ => panic!("unknown binary operation: {}", name)
-                };
-                out.binary_op(op);
-                out.push();
-            },
-            Command::LogicalOp(name) => {
-                let jmp = match *name {
-                    "eq" => "JEQ",
-                    "gt" => "JGT",
-                    "lt" => "JLT",
-                    _ => panic!("unknown logical operation: {}", name)
-                };
-                out.logical_op(jmp, label_counter);
-                out.push();
-                label_counter += 1;
-            },
-            Command::Push{ segment, index } => {
-                assert!(*index >= 0);
-                // D = segment[index]
-                match *segment {
-                    "constant" => {
-                        out.write(&format!("@{}", index));
-                        out.write("D=A");
-                    },
-                    _ => {
-                        out.set_segment_index_address_to(segment, *index, 'A');
-                        out.write("D=M");
-                    }
-                }
-                out.push();
-            },
-            Command::Pop{ segment, index } => {
-                assert!(*index >= 0);
-                // *R13 = segment + index
-                out.set_segment_index_address_to(segment, *index, 'D');
-                out.write("@R13");
-                out.write("M=D");
-
-                out.pop();
-
-                // **R13 = D
-                out.write("@R13");
-                out.write("A=M");
-                out.write("M=D");
-            },
-            Command::Label(symbol) => {
-                out.label(symbol);
-            },
-            Command::Goto(symbol) => {
-                out.symbol(symbol);
-                out.write("0;JMP");
-            },
-            Command::IfGoto(symbol) => {
-                out.pop();
-                out.symbol(symbol);
-                out.write("D;JNE");
-            },
-            _ => panic!("not implemented: {:?}", command)
-        }
-        out.write(&format!("// </{:?}>", command));
+        translate_command(out, command);
     }
-    out.write(VM_TERMINAL_ASM);
+}
+
+pub fn compile(out: &mut std::fmt::Write, source_filename: &str, source: &str) {
+    let mut out = AsmWriter::new(out, source_filename);
+    out.set_ram("SP", 256);
+    out.set_ram("LCL", 300);
+    out.set_ram("ARG", 400);
+    out.set_ram("THIS", 3000);
+    out.set_ram("THAT", 3010);
+    translate_vm_source(&mut out, source);
+    //out.write(VM_TERMINAL_ASM);
 }
 
 #[cfg(test)]
@@ -306,10 +287,13 @@ mod tests {
 
         let bin = asm::asm(&asm_source).unwrap();
         let mut machine = Machine::new(&bin);
-        for _ in 0 .. nclock {
+        let mut n = 0;
+        while !machine.is_terminated() {
             println!("{}", inst::Instruction::decode(machine.next_instruction()));
             machine.clock(false);
             println!("SP = {}, STACK TOP = {}", machine.read_memory(0), machine.read_memory(machine.read_memory(0) - 1));
+            n += 1;
+            assert!(n < nclock);
         }
         machine.read_memory(machine.read_memory(0) - 1) // top of the stack
     }
@@ -534,4 +518,34 @@ mod tests {
         {}
         ", vm));
     }
+
+    /*
+    #[test]
+    fn sum() {
+        test(200, 0, "
+        // This file is part of www.nand2tetris.org
+        // and the book \"The Elements of Computing Systems\"
+        // by Nisan and Schocken, MIT Press.
+        // File name: projects/08/ProgramFlow/BasicLoop/BasicLoop.vm
+
+        // Computes the sum 1 + 2 + ... + argument[0] and pushes the 
+        // result onto the stack. Argument[0] is initialized by the test 
+        // script before this code starts running.
+        push constant 0    
+        pop local 0         // initializes sum = 0
+        label LOOP_START
+        push argument 0    
+        push local 0
+        add
+        pop local 0	        // sum = sum + counter
+        push argument 0
+        push constant 1
+        sub
+        pop argument 0      // counter--
+        push argument 0
+        if-goto LOOP_START  // If counter > 0, goto LOOP_START
+        push local 0
+        ");
+    }
+    */
 }

@@ -88,6 +88,9 @@ impl Machine {
     pub fn next_instruction(&self) -> i16 {
         debug::word2int(self.instruction_memory.out(self.cpu.pc()))
     }
+    pub fn is_terminated(&self) -> bool {
+        self.instruction_memory.is_terminated(self.cpu.pc())
+    }
     pub fn read_memory(&self, address: i16) -> i16 {
         debug::word2int(self.data_memory.out(debug::int2word(address)))
     }
