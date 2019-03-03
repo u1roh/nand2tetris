@@ -18,42 +18,28 @@ enum Command<'a> {
     IfGoto(&'a str),
 
     // function calling commands
-    Function(&'a str, i16),
-    Call(&'a str, i16),
+    Function{ funcname: &'a str, nlocals: i16 },
+    Call{ funcname: &'a str, nargs: i16 },
     Return
 }
 
-impl<'a> Command<'a> {
-    fn from_line(line: &'a str) -> Self {
-        assert!(!line.is_empty());
-        let tokens = line.split_whitespace().collect::<Vec<_>>();
-        assert!(tokens.len() != 0);
-        match tokens[0] {
-            "neg" | "not" => Command::UnaryOp(tokens[0]),
-            "add" | "sub" | "and" | "or" => Command::BinaryOp(tokens[0]),
-            "eq" | "gt" | "lt" => Command::LogicalOp(tokens[0]),
-            "push"  => {
-                assert_eq!(tokens.len(), 3);
-                Command::Push{ segment: tokens[1], index: tokens[2].parse::<i16>().unwrap() }
-            },
-            "pop" => {
-                assert_eq!(tokens.len(), 3);
-                Command::Pop{ segment: tokens[1], index: tokens[2].parse::<i16>().unwrap() }
-            },
-            "label" => {
-                assert_eq!(tokens.len(), 2);
-                Command::Label(tokens[1])
-            },
-            "if-goto" => {
-                assert_eq!(tokens.len(), 2);
-                Command::IfGoto(tokens[1])
-            },
-            "goto" => {
-                assert_eq!(tokens.len(), 2);
-                Command::Goto(tokens[1])
-            },
-            _ => panic!("unknown command: {}", line)
-        }
+fn line_to_command(line: &str) -> Command {
+    assert!(!line.is_empty());
+    let tokens = line.split_whitespace().collect::<Vec<_>>();
+    assert!(tokens.len() != 0);
+    match tokens[0] {
+        "neg" | "not" => Command::UnaryOp(tokens[0]),
+        "add" | "sub" | "and" | "or" => Command::BinaryOp(tokens[0]),
+        "eq" | "gt" | "lt" => Command::LogicalOp(tokens[0]),
+        "push"      => Command::Push{ segment: tokens[1], index: tokens[2].parse::<i16>().unwrap() },
+        "pop"       => Command::Pop{ segment: tokens[1], index: tokens[2].parse::<i16>().unwrap() },
+        "label"     => Command::Label(tokens[1]),
+        "if-goto"   => Command::IfGoto(tokens[1]),
+        "goto"      => Command::Goto(tokens[1]),
+        "function"  => Command::Function{ funcname: tokens[1], nlocals: tokens[2].parse::<i16>().unwrap() },
+        "call"      => Command::Call{ funcname: tokens[1], nargs: tokens[2].parse::<i16>().unwrap() },
+        "return"    => Command::Return,
+        _ => panic!("unknown command: {}", line)
     }
 }
 
@@ -85,6 +71,17 @@ M=M-1
 A=M
 D=M
 // </STACK POP>
+";
+
+static RETURN_ASM: &str = "
+@ARG\nA=M\nM=D          // *RAM[ARG] = D
+@ARG\nD=M+1\n@SP\nM=D   // RAM[SP] = RAM[ARG] + 1
+@LCL\nD=M\n@R13\nM=D    // RAM[R13] = RAM[LCL]
+@R13\nM=M-1\nA=M\nD=M\n@THAT\nM=D   // --RAM[R13]; *THAT = *RAM[R13];
+@R13\nM=M-1\nA=M\nD=M\n@THIS\nM=D   // --RAM[R13]; *THIS = *RAM[R13];
+@R13\nM=M-1\nA=M\nD=M\n@ARG\nM=D    // --RAM[R13]; *ARG  = *RAM[R13];
+@R13\nM=M-1\nA=M\nD=M\n@LCL\nM=D    // --RAM[R13]; *LCL  = *RAM[R13];
+@R13\nM=M-1\nA=M\nA=M\n0;JMP        // --RAM[R13]; goto *RAM[R13];
 ";
 
 struct AsmWriter<'a> {
@@ -122,6 +119,12 @@ impl<'a> AsmWriter<'a> {
     fn pop(&mut self) {
         self.write(POP_ASM)
     }
+    fn jump(&mut self, label: &str) {
+        writeln!(self.out, "@{}\n0;JMP", label).unwrap();
+    }
+    fn jump_if(&mut self, label: &str, jmp: &str) {
+        writeln!(self.out, "@{}\nD;{}", label, jmp).unwrap();
+    }
     fn binary_op(&mut self, op: char) {
         self.pop();
         self.store("R13");
@@ -133,11 +136,9 @@ impl<'a> AsmWriter<'a> {
         let if_true = format!("IF_TRUE_{}", self.label_id);
         let if_end  = format!("IF_END_{}", self.label_id);
         self.binary_op('-');
-        self.symbol(&if_true);
-        self.write(&format!("D;{}", jmp));
+        self.jump_if(&if_true, jmp);
         self.write("D=0");
-        self.symbol(&if_end);
-        self.write("0;JMP");
+        self.jump(&if_end);
         self.label(&if_true);
         self.write("D=-1");
         self.label(&if_end);
@@ -245,6 +246,15 @@ fn translate_command(out: &mut AsmWriter, command: &Command) {
             out.symbol(symbol);
             out.write("D;JNE");
         },
+        Command::Function{ funcname, nlocals } => {
+            out.label(funcname);
+            out.write("D=0");
+            for _ in 0 .. *nlocals { out.push() }
+        },
+        Command::Return => {
+            out.pop();
+            out.write(RETURN_ASM);
+        },
         _ => panic!("not implemented: {:?}", command)
     }
     out.write(&format!("// </{:?}>", command));
@@ -255,7 +265,7 @@ fn translate_vm_source(out: &mut AsmWriter, source: &str) {
         .map(|line| if let Some(i) = line.find("//") { &line[..i] } else { line })  // remove comment
         .map(|line| line.trim())  // remove white spaces of head and tail
         .filter(|line| !line.is_empty())    // filter empty line
-        .map(Command::from_line)
+        .map(line_to_command)
         .collect::<Vec<_>>();
     for command in &commands {
         translate_command(out, command);
@@ -280,31 +290,32 @@ mod tests {
     use machine::*;
     use super::*;
 
-    fn run_machine(vm_source: &str, nclock: usize) -> i16 {
+    fn run_machine(vm_source: &str, max_clock: usize) -> i16 {
         let mut asm_source = String::new();
         compile(&mut asm_source, "test_file", vm_source);
         println!("{}", asm_source);
 
         let bin = asm::asm(&asm_source).unwrap();
         let mut machine = Machine::new(&bin);
-        let mut n = 0;
+        let mut nclock = 0;
         while !machine.is_terminated() {
             println!("{}", inst::Instruction::decode(machine.next_instruction()));
             machine.clock(false);
             println!("SP = {}, STACK TOP = {}", machine.read_memory(0), machine.read_memory(machine.read_memory(0) - 1));
-            n += 1;
-            assert!(n < nclock);
+            nclock += 1;
+            assert!(nclock < max_clock);
         }
         machine.read_memory(machine.read_memory(0) - 1) // top of the stack
     }
 
-    fn test(nclock: usize, expected: i16, source: &str) {
-        assert_eq!(expected, run_machine(source, nclock));
+    fn test(expected: i16, source: &str) {
+        let max_clock = 1000;
+        assert_eq!(expected, run_machine(source, max_clock));
     }
 
     #[test]
     fn add() {
-        test(100, 15, "
+        test(15, "
         push constant 7
         push constant 8
         add
@@ -313,7 +324,7 @@ mod tests {
 
     #[test]
     fn sub() {
-        test(100, 327 - 193,"
+        test(327 - 193,"
         push constant 327
         push constant 193
         sub
@@ -322,7 +333,7 @@ mod tests {
 
     #[test]
     fn and() {
-        test(100, 826 & 294, "
+        test(826 & 294, "
         push constant 826
         push constant 294
         and
@@ -331,7 +342,7 @@ mod tests {
 
     #[test]
     fn or() {
-        test(100, 826 | 294, "
+        test(826 | 294, "
         push constant 826
         push constant 294
         or
@@ -340,12 +351,12 @@ mod tests {
 
     #[test]
     fn eq() {
-        test(100, -1, "
+        test(-1, "
         push constant 123
         push constant 123
         eq
         ");
-        test(100, 0, "
+        test(0, "
         push constant 100
         push constant 200
         eq
@@ -354,17 +365,17 @@ mod tests {
 
     #[test]
     fn gt() {
-        test(100, -1, "
+        test(-1, "
         push constant 826
         push constant 294
         gt
         ");
-        test(100, 0, "
+        test(0, "
         push constant 1
         push constant 2
         gt
         ");
-        test(100, 0, "
+        test(0, "
         push constant 3
         push constant 3
         gt
@@ -373,17 +384,17 @@ mod tests {
 
     #[test]
     fn lt() {
-        test(100, 0, "
+        test(0, "
         push constant 826
         push constant 294
         lt
         ");
-        test(100, -1, "
+        test(-1, "
         push constant 1
         push constant 2
         lt
         ");
-        test(100, 0, "
+        test(0, "
         push constant 3
         push constant 3
         lt
@@ -392,11 +403,11 @@ mod tests {
 
     #[test]
     fn neg() {
-        test(100, -123, "
+        test(-123, "
         push constant 123
         neg
         ");
-        test(100, 321, "
+        test(321, "
         push constant 321
         neg
         neg
@@ -405,11 +416,11 @@ mod tests {
 
     #[test]
     fn not() {
-        test(100, !0, "
+        test(!0, "
         push constant 0
         not
         ");
-        test(100, !123, "
+        test(!123, "
         push constant 123
         not
         ");
@@ -417,21 +428,21 @@ mod tests {
 
     #[test]
     fn arithmetic() {
-        test(100, 1 - (2 + 3), "
+        test(1 - (2 + 3), "
         push constant 1
         push constant 2
         push constant 3
         add
         sub
         ");
-        test(100, (1 + 2) - 3, "
+        test((1 + 2) - 3, "
         push constant 1
         push constant 2
         add
         push constant 3
         sub
         ");
-        test(200, (1 + 3) - (5 + 7), "
+        test((1 + 3) - (5 + 7), "
         push constant 1
         push constant 3
         add
@@ -444,12 +455,12 @@ mod tests {
 
     #[test]
     fn pointer_segment() {
-        test(100, 123, "
+        test(123, "
         push constant 123
         pop pointer 0
         push pointer 0
         ");
-        test(100, 456, "
+        test(456, "
         push constant 456
         pop pointer 1
         push pointer 1
@@ -458,24 +469,17 @@ mod tests {
 
     #[test]
     fn this_segment() {
-        test(100, 789, "
+        test(789, "
         push constant 789
         pop this 0
         push this 0
         ");
-        test(100, 111, "
+        test(111, "
         push constant 111
         pop this 1
         push this 1
         ");
-        test(100, 3001, "
-        push constant 3000
-        push constant 1
-        add
-        pop pointer 0
-        push pointer 0
-        ");
-        test(200, 789, "
+        test(789, "
         push constant 789
         pop this 1
         push pointer 0
@@ -489,7 +493,7 @@ mod tests {
 
     #[test]
     fn static_segment() {
-        test(200, 123, "
+        test(123, "
         push constant 123
         pop static 3
         push static 3
@@ -508,29 +512,26 @@ mod tests {
         push constant 1
         add
         ";
-        test(200, 124, &format!("
+        test(124, &format!("
         push constant 0
         {}
         ", vm));
-        test(200, 457, &format!("
+        test(457, &format!("
         push constant 0
         not
         {}
         ", vm));
     }
 
-    /*
     #[test]
     fn sum() {
-        test(200, 0, "
-        // This file is part of www.nand2tetris.org
-        // and the book \"The Elements of Computing Systems\"
-        // by Nisan and Schocken, MIT Press.
-        // File name: projects/08/ProgramFlow/BasicLoop/BasicLoop.vm
+        test(1 + 2 + 3 + 4 + 5, "
+        // argument[0] = 5
+        push constant 5
+        pop argument 0
 
         // Computes the sum 1 + 2 + ... + argument[0] and pushes the 
-        // result onto the stack. Argument[0] is initialized by the test 
-        // script before this code starts running.
+        // result onto the stack.
         push constant 0    
         pop local 0         // initializes sum = 0
         label LOOP_START
@@ -547,5 +548,18 @@ mod tests {
         push local 0
         ");
     }
-    */
+
+    #[test]
+    fn simple_function() {
+        test(3, "
+        function test_add 0
+            push argument 0
+            push argument 1
+            add
+            return
+        push constant 1
+        push constant 2
+        call test_add 2
+        ");
+    }
 }
