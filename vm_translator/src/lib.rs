@@ -43,13 +43,13 @@ fn line_to_command(line: &str) -> Command {
     }
 }
 
-static VM_TERMINAL_ASM: &str = "
+const VM_TERMINAL_ASM: &str = "
 (INFINITE_LOOP)
 @INFINITE_LOOP
 0;JMP
 ";
 
-static PUSH_ASM: &str = "
+const PUSH_ASM: &str = "
 // <STACK PUSH>
 // **SP = D
 @SP
@@ -61,7 +61,7 @@ M=M+1
 // </STACK PUSH>
 ";
 
-static POP_ASM: &str = "
+const POP_ASM: &str = "
 // <STACK POP>
 // *SP = *SP - 1
 @SP
@@ -73,7 +73,7 @@ D=M
 // </STACK POP>
 ";
 
-static RETURN_ASM: &str = "
+const RETURN_ASM: &str = "
 @ARG\nA=M\nM=D          // *RAM[ARG] = D
 @ARG\nD=M+1\n@SP\nM=D   // RAM[SP] = RAM[ARG] + 1
 @LCL\nD=M\n@R13\nM=D    // RAM[R13] = RAM[LCL]
@@ -81,7 +81,7 @@ static RETURN_ASM: &str = "
 @R13\nM=M-1\nA=M\nD=M\n@THIS\nM=D   // --RAM[R13]; *THIS = *RAM[R13];
 @R13\nM=M-1\nA=M\nD=M\n@ARG\nM=D    // --RAM[R13]; *ARG  = *RAM[R13];
 @R13\nM=M-1\nA=M\nD=M\n@LCL\nM=D    // --RAM[R13]; *LCL  = *RAM[R13];
-@R13\nM=M-1\nA=M\nA=M\n0;JMP        // --RAM[R13]; goto *RAM[R13];
+@R14\nA=M\n0;JMP    // goto RAM[R14]
 ";
 
 struct AsmWriter<'a> {
@@ -132,9 +132,13 @@ impl<'a> AsmWriter<'a> {
         self.write("@R13");
         self.write(&format!("D=D{}M", op));
     }
+    fn new_unique_label(&mut self, label: &str) -> String {
+        self.label_id += 1;
+        format!("{}_{}", label, self.label_id)
+    }
     fn logical_op(&mut self, jmp: &str) {
-        let if_true = format!("IF_TRUE_{}", self.label_id);
-        let if_end  = format!("IF_END_{}", self.label_id);
+        let if_true = self.new_unique_label("IF_TRUE");
+        let if_end  = self.new_unique_label("IF_END");
         self.binary_op('-');
         self.jump_if(&if_true, jmp);
         self.write("D=0");
@@ -142,7 +146,6 @@ impl<'a> AsmWriter<'a> {
         self.label(&if_true);
         self.write("D=-1");
         self.label(&if_end);
-        self.label_id += 1;
     }
     fn set_segment_index_address_to(&mut self, segment: &str, index: i16, dst: char) {
         // write 'index' to D-register
@@ -169,6 +172,29 @@ impl<'a> AsmWriter<'a> {
             },
             _ => panic!("unknown segment")
         }
+    }
+    fn call(&mut self, funcname: &str, nargs: i16) {
+        let return_label = self.new_unique_label("RETURN");
+        self.symbol(&return_label);
+        self.write("D=A");
+        self.push();
+
+        self.write("@LGL\nA=M\nD=M");
+        self.push();
+
+        self.write("@ARG\nA=M\nD=M");
+        self.push();
+
+        self.write("@THIS\nA=M\nD=M");
+        self.push();
+
+        self.write("@THAT\nA=M\nD=M");
+        self.push();
+
+        writeln!(self.out, "@{}\nD=-A\n@SP\nD=D+M\n@ARG\nM=D", nargs + 5).unwrap();  // *ARG = *SP - nargs - 5
+        self.write("@SP\nD=M\n@LCL\nM=D");  // *LCL = *SP
+        writeln!(self.out, "@{}\n0;JMP", funcname).unwrap();
+        self.label(&return_label);
     }
 }
 
@@ -252,10 +278,13 @@ fn translate_command(out: &mut AsmWriter, command: &Command) {
             for _ in 0 .. *nlocals { out.push() }
         },
         Command::Return => {
+            out.write("@LCL\nD=M\n@5\nD=D-A\n@R14\nM=D"); // RAM[R14] = RAM[LCL] - 5 (put the return-address in RAM[R14])
             out.pop();
             out.write(RETURN_ASM);
         },
-        _ => panic!("not implemented: {:?}", command)
+        Command::Call{ funcname, nargs } => {
+            out.call(funcname, *nargs);
+        }
     }
     out.write(&format!("// </{:?}>", command));
 }
@@ -275,12 +304,11 @@ fn translate_vm_source(out: &mut AsmWriter, source: &str) {
 pub fn compile(out: &mut std::fmt::Write, source_filename: &str, source: &str) {
     let mut out = AsmWriter::new(out, source_filename);
     out.set_ram("SP", 256);
-    out.set_ram("LCL", 300);
-    out.set_ram("ARG", 400);
-    out.set_ram("THIS", 3000);
-    out.set_ram("THAT", 3010);
+    out.call("Sys.init", 0);
+    let termination = out.new_unique_label("TERMINATION");
+    out.jump(&termination);
     translate_vm_source(&mut out, source);
-    //out.write(VM_TERMINAL_ASM);
+    out.label(&termination);
 }
 
 #[cfg(test)]
@@ -290,27 +318,43 @@ mod tests {
     use machine::*;
     use super::*;
 
-    fn run_machine(vm_source: &str, max_clock: usize) -> i16 {
-        let mut asm_source = String::new();
-        compile(&mut asm_source, "test_file", vm_source);
+    fn run_machine(asm_source: &str, max_clock: usize) -> i16 {
         println!("{}", asm_source);
-
         let bin = asm::asm(&asm_source).unwrap();
         let mut machine = Machine::new(&bin);
         let mut nclock = 0;
+        machine.print_status_header();
         while !machine.is_terminated() {
-            println!("{}", inst::Instruction::decode(machine.next_instruction()));
+            //println!("{}", inst::Instruction::decode(machine.next_instruction()));
             machine.clock(false);
-            println!("SP = {}, STACK TOP = {}", machine.read_memory(0), machine.read_memory(machine.read_memory(0) - 1));
+            //println!("SP = {}, STACK TOP = {}", machine.read_memory(0), machine.read_memory(machine.read_memory(0) - 1));
+            machine.print_status();
+            println!();
             nclock += 1;
             assert!(nclock < max_clock);
         }
         machine.read_memory(machine.read_memory(0) - 1) // top of the stack
     }
 
-    fn test(expected: i16, source: &str) {
+    fn test(expected: i16, vm_source: &str) {
+        let mut asm_source = String::new();
+        //compile(&mut asm_source, "test_file", vm_source);
+        let mut out = AsmWriter::new(&mut asm_source, "test_file");
+        out.set_ram("SP", 256);
+        out.set_ram("LCL", 300);
+        out.set_ram("ARG", 400);
+        out.set_ram("THIS", 3000);
+        out.set_ram("THAT", 3010);
+        translate_vm_source(&mut out, vm_source);
         let max_clock = 1000;
-        assert_eq!(expected, run_machine(source, max_clock));
+        assert_eq!(expected, run_machine(&asm_source, max_clock));
+    }
+
+    fn test2(expected: i16, vm_source: &str) {
+        let mut asm_source = String::new();
+        compile(&mut asm_source, "test_file", &vm_source);
+        let max_clock = 1000;
+        assert_eq!(expected, run_machine(&asm_source, max_clock));
     }
 
     #[test]
@@ -550,16 +594,28 @@ mod tests {
     }
 
     #[test]
+    fn sys_init() {
+        test2(1234 + 5678, "
+        function Sys.init 0
+            push constant 1234
+            push constant 5678
+            add
+            return
+        ");
+    }
+
+    #[test]
     fn simple_function() {
-        test(3, "
+        test2(3, "
         function test_add 0
             push argument 0
             push argument 1
             add
             return
-        push constant 1
-        push constant 2
-        call test_add 2
+        function Sys.init 0
+            push constant 1
+            push constant 2
+            call test_add 2
         ");
     }
 }
