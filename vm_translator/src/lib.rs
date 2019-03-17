@@ -1,3 +1,5 @@
+mod writer;
+use writer::*;
 
 #[derive(Debug)]
 enum Command<'a> {
@@ -43,172 +45,16 @@ fn line_to_command(line: &str) -> Command {
     }
 }
 
-const VM_TERMINAL_ASM: &str = "
-(INFINITE_LOOP)
-@INFINITE_LOOP
-0;JMP
-";
-
-const PUSH_ASM: &str = "
-// <STACK PUSH>
-// **SP = D
-@SP
-A=M
-M=D
-// *SP = *SP + 1
-@SP
-M=M+1
-// </STACK PUSH>
-";
-
-const POP_ASM: &str = "
-// <STACK POP>
-// *SP = *SP - 1
-@SP
-M=M-1
-// D = **SP
-@SP
-A=M
-D=M
-// </STACK POP>
-";
-
-const RETURN_ASM: &str = "
-@ARG\nA=M\nM=D          // *RAM[ARG] = D
-@ARG\nD=M+1\n@SP\nM=D   // RAM[SP] = RAM[ARG] + 1
-@LCL\nD=M\n@R13\nM=D    // RAM[R13] = RAM[LCL]
-@R13\nM=M-1\nA=M\nD=M\n@THAT\nM=D   // --RAM[R13]; *THAT = *RAM[R13];
-@R13\nM=M-1\nA=M\nD=M\n@THIS\nM=D   // --RAM[R13]; *THIS = *RAM[R13];
-@R13\nM=M-1\nA=M\nD=M\n@ARG\nM=D    // --RAM[R13]; *ARG  = *RAM[R13];
-@R13\nM=M-1\nA=M\nD=M\n@LCL\nM=D    // --RAM[R13]; *LCL  = *RAM[R13];
-@R14\nA=M\n0;JMP    // goto RAM[R14]
-";
-
-struct AsmWriter<'a> {
-    out: &'a mut std::fmt::Write,
-    filename: &'a str,
-    label_id: usize
-}
-
-impl<'a> AsmWriter<'a> {
-    fn new(out: &'a mut std::fmt::Write, filename: &'a str) -> Self {
-        Self{ out: out, filename: filename, label_id: 0 }
-    }
-    fn write(&mut self, s: &str) {
-        writeln!(self.out, "{}", s).unwrap();
-    }
-    fn write_lines(&mut self, lines: &[&str]) {
-        for line in lines { self.write(line); }
-    }
-    fn label(&mut self, label: &str) {
-        writeln!(self.out, "({})", label).unwrap();
-    }
-    fn symbol(&mut self, symbol: &str) {
-        writeln!(self.out, "@{}", symbol).unwrap();
-    }
-    fn set_ram(&mut self, symbol: &str, value: i16) {
-        writeln!(self.out, "@{}\nD=A\n@{}\nM=D", value, symbol).unwrap();
-    }
-    // RAM[symbol] = D
-    fn store(&mut self, symbol: &str) {
-        writeln!(self.out, "@{}\nM=D", symbol).unwrap();
-    }
-    fn push(&mut self) {
-        self.write(PUSH_ASM)
-    }
-    fn pop(&mut self) {
-        self.write(POP_ASM)
-    }
-    fn jump(&mut self, label: &str) {
-        writeln!(self.out, "@{}\n0;JMP", label).unwrap();
-    }
-    fn jump_if(&mut self, label: &str, jmp: &str) {
-        writeln!(self.out, "@{}\nD;{}", label, jmp).unwrap();
-    }
-    fn binary_op(&mut self, op: char) {
-        self.pop();
-        self.store("R13");
-        self.pop();
-        self.write("@R13");
-        self.write(&format!("D=D{}M", op));
-    }
-    fn new_unique_label(&mut self, label: &str) -> String {
-        self.label_id += 1;
-        format!("{}_{}", label, self.label_id)
-    }
-    fn logical_op(&mut self, jmp: &str) {
-        let if_true = self.new_unique_label("IF_TRUE");
-        let if_end  = self.new_unique_label("IF_END");
-        self.binary_op('-');
-        self.jump_if(&if_true, jmp);
-        self.write("D=0");
-        self.jump(&if_end);
-        self.label(&if_true);
-        self.write("D=-1");
-        self.label(&if_end);
-    }
-    fn set_segment_index_address_to(&mut self, segment: &str, index: i16, dst: char) {
-        // write 'index' to D-register
-        self.write_lines(&[&format!("@{}", index), "D=A"]);
-        match segment {
-            "constant" => panic!("constant is pseudo segment"),
-            "static" => {
-                self.write(&format!("@{}.{}", self.filename, index));
-                if dst != 'A' { self.write(&format!("{}=A", dst)) }
-            },
-            "argument" | "local" | "this" | "that" => {
-                let symbol = match segment { "argument" => "ARG", "local" => "LCL", "this" => "THIS", "that" => "THAT", _ => panic!("invalid segment") };
-                self.write_lines(&[
-                    &format!("@{}", symbol),
-                    &format!("{}=D+M", dst)
-                ]);
-            },
-            "pointer" | "temp" => {
-                let symbol = match segment { "pointer" => "R3", "temp" => "R5", _ => panic!("invalid segment") };
-                self.write_lines(&[
-                    &format!("@{}", symbol),
-                    &format!("{}=D+A", dst)
-                ]);
-            },
-            _ => panic!("unknown segment")
-        }
-    }
-    fn call(&mut self, funcname: &str, nargs: i16) {
-        let return_label = self.new_unique_label("RETURN");
-        self.symbol(&return_label);
-        self.write("D=A");
-        self.push();
-
-        self.write("@LGL\nA=M\nD=M");
-        self.push();
-
-        self.write("@ARG\nA=M\nD=M");
-        self.push();
-
-        self.write("@THIS\nA=M\nD=M");
-        self.push();
-
-        self.write("@THAT\nA=M\nD=M");
-        self.push();
-
-        writeln!(self.out, "@{}\nD=-A\n@SP\nD=D+M\n@ARG\nM=D", nargs + 5).unwrap();  // *ARG = *SP - nargs - 5
-        self.write("@SP\nD=M\n@LCL\nM=D");  // *LCL = *SP
-        writeln!(self.out, "@{}\n0;JMP", funcname).unwrap();
-        self.label(&return_label);
-    }
-}
-
 fn translate_command(out: &mut AsmWriter, command: &Command) {
-    out.write(&format!("// <{:?}>", command));
+    //out.write(&format!("// <{:?}>", command));
     match command {
         Command::UnaryOp(name) => {
-            let mnemonic = match *name {
-                "neg" => "-D",
-                "not" => "!D",
+            let op = match *name {
+                "neg" => '-',
+                "not" => '!',
                 _ => panic!("unknown unary operation: {}", name)
             };
-            out.pop();
-            out.write(&format!("D={}", mnemonic));
+            out.unary_op(op);
             out.push();
         },
         Command::BinaryOp(name) => {
@@ -233,60 +79,32 @@ fn translate_command(out: &mut AsmWriter, command: &Command) {
             out.push();
         },
         Command::Push{ segment, index } => {
-            assert!(*index >= 0);
-            // D = segment[index]
-            match *segment {
-                "constant" => {
-                    out.write(&format!("@{}", index));
-                    out.write("D=A");
-                },
-                _ => {
-                    out.set_segment_index_address_to(segment, *index, 'A');
-                    out.write("D=M");
-                }
-            }
-            out.push();
+            out.push_segment(segment, *index);
         },
         Command::Pop{ segment, index } => {
-            assert!(*index >= 0);
-            // *R13 = segment + index
-            out.set_segment_index_address_to(segment, *index, 'D');
-            out.store("R13");
-
-            out.pop();
-
-            // **R13 = D
-            out.write("@R13");
-            out.write("A=M");
-            out.write("M=D");
+            out.pop_segment(segment, *index);
         },
         Command::Label(symbol) => {
             out.label(symbol);
         },
         Command::Goto(symbol) => {
-            out.symbol(symbol);
-            out.write("0;JMP");
+            out.jump(symbol);
         },
         Command::IfGoto(symbol) => {
             out.pop();
-            out.symbol(symbol);
-            out.write("D;JNE");
+            out.jump_if(symbol, "JNE");
         },
         Command::Function{ funcname, nlocals } => {
-            out.label(funcname);
-            out.write("D=0");
-            for _ in 0 .. *nlocals { out.push() }
+            out.func_begin(funcname, *nlocals);
         },
         Command::Return => {
-            out.write("@LCL\nD=M\n@5\nD=D-A\n@R14\nM=D"); // RAM[R14] = RAM[LCL] - 5 (put the return-address in RAM[R14])
-            out.pop();
-            out.write(RETURN_ASM);
+            out.func_return();
         },
         Command::Call{ funcname, nargs } => {
-            out.call(funcname, *nargs);
+            out.func_call(funcname, *nargs);
         }
     }
-    out.write(&format!("// </{:?}>", command));
+    //out.write(&format!("// </{:?}>", command));
 }
 
 fn translate_vm_source(out: &mut AsmWriter, source: &str) {
@@ -303,12 +121,8 @@ fn translate_vm_source(out: &mut AsmWriter, source: &str) {
 
 pub fn compile(out: &mut std::fmt::Write, source_filename: &str, source: &str) {
     let mut out = AsmWriter::new(out, source_filename);
-    out.set_ram("SP", 256);
-    out.call("Sys.init", 0);
-    let termination = out.new_unique_label("TERMINATION");
-    out.jump(&termination);
+    let _ = out.call_sys_init();
     translate_vm_source(&mut out, source);
-    out.label(&termination);
 }
 
 #[cfg(test)]
@@ -338,14 +152,15 @@ mod tests {
 
     fn test(expected: i16, vm_source: &str) {
         let mut asm_source = String::new();
-        //compile(&mut asm_source, "test_file", vm_source);
-        let mut out = AsmWriter::new(&mut asm_source, "test_file");
-        out.set_ram("SP", 256);
-        out.set_ram("LCL", 300);
-        out.set_ram("ARG", 400);
-        out.set_ram("THIS", 3000);
-        out.set_ram("THAT", 3010);
-        translate_vm_source(&mut out, vm_source);
+        {
+            let mut out = AsmWriter::new(&mut asm_source, "test_file");
+            out.set_ram("SP", 256);
+            out.set_ram("LCL", 300);
+            out.set_ram("ARG", 400);
+            out.set_ram("THIS", 3000);
+            out.set_ram("THAT", 3010);
+            translate_vm_source(&mut out, vm_source);
+        }
         let max_clock = 1000;
         assert_eq!(expected, run_machine(&asm_source, max_clock));
     }
