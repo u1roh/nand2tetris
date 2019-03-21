@@ -4,11 +4,11 @@ use writer::*;
 #[derive(Debug)]
 enum Command<'a> {
     // arithmetic commands
-    BinaryOp(&'a str),
-    UnaryOp(&'a str),
+    BinaryOp(BinaryOp),
+    UnaryOp(UnaryOp),
 
     // logical commands
-    LogicalOp(&'a str), // eq, gt, lt
+    LogicalOp(Condition), // eq, gt, lt
 
     // memory access commands
     Push{ segment: &'a str, index: i16 },
@@ -30,9 +30,33 @@ fn line_to_command(line: &str) -> Command {
     let tokens = line.split_whitespace().collect::<Vec<_>>();
     assert!(tokens.len() != 0);
     match tokens[0] {
-        "neg" | "not" => Command::UnaryOp(tokens[0]),
-        "add" | "sub" | "and" | "or" => Command::BinaryOp(tokens[0]),
-        "eq" | "gt" | "lt" => Command::LogicalOp(tokens[0]),
+        "neg" | "not" => {
+            let op = match tokens[0] {
+                "neg" => UnaryOp::Neg,
+                "not" => UnaryOp::Not,
+                _ => panic!("unknown unary operation: {}", tokens[0])
+            };
+            Command::UnaryOp(op)
+        },
+        "add" | "sub" | "and" | "or" => {
+            let op = match tokens[0] {
+                "add" => BinaryOp::Add,
+                "sub" => BinaryOp::Sub,
+                "and" => BinaryOp::And,
+                "or"  => BinaryOp::Or,
+                _ => panic!("unknown binary operation: {}", tokens[0])
+            };
+            Command::BinaryOp(op)
+        },
+        "eq" | "gt" | "lt" => {
+            let cond = match tokens[0] {
+                "eq" => Condition::Eq,
+                "gt" => Condition::Gt,
+                "lt" => Condition::Lt,
+                _ => panic!("unknown logical operation: {}", tokens[0])
+            };
+            Command::LogicalOp(cond)
+        },
         "push"      => Command::Push{ segment: tokens[1], index: tokens[2].parse::<i16>().unwrap() },
         "pop"       => Command::Pop{ segment: tokens[1], index: tokens[2].parse::<i16>().unwrap() },
         "label"     => Command::Label(tokens[1]),
@@ -45,63 +69,45 @@ fn line_to_command(line: &str) -> Command {
     }
 }
 
-fn translate_command(out: &mut AsmWriter, command: &Command) {
+fn translate_command(out: &mut AsmWriter, command: Command) {
     //out.write(&format!("// <{:?}>", command));
     match command {
-        Command::UnaryOp(name) => {
-            let op = match *name {
-                "neg" => '-',
-                "not" => '!',
-                _ => panic!("unknown unary operation: {}", name)
-            };
+        Command::UnaryOp(op) => {
             out.unary_op(op);
             out.push();
         },
-        Command::BinaryOp(name) => {
-            let op = match *name {
-                "add" => '+',
-                "sub" => '-',
-                "and" => '&',
-                "or"  => '|',
-                _ => panic!("unknown binary operation: {}", name)
-            };
+        Command::BinaryOp(op) => {
             out.binary_op(op);
             out.push();
         },
-        Command::LogicalOp(name) => {
-            let jmp = match *name {
-                "eq" => "JEQ",
-                "gt" => "JGT",
-                "lt" => "JLT",
-                _ => panic!("unknown logical operation: {}", name)
-            };
-            out.logical_op(jmp);
+        Command::LogicalOp(cond) => {
+            out.logical_op(cond);
             out.push();
         },
         Command::Push{ segment, index } => {
-            out.push_segment(segment, *index);
+            out.push_segment(segment, index);
         },
         Command::Pop{ segment, index } => {
-            out.pop_segment(segment, *index);
+            out.pop_segment(segment, index);
         },
         Command::Label(symbol) => {
             out.label(symbol);
         },
         Command::Goto(symbol) => {
-            out.jump(symbol);
+            out.goto(symbol);
         },
         Command::IfGoto(symbol) => {
             out.pop();
-            out.jump_if(symbol, "JNE");
+            out.if_goto(symbol);
         },
         Command::Function{ funcname, nlocals } => {
-            out.func_begin(funcname, *nlocals);
+            out.func_begin(funcname, nlocals);
         },
         Command::Return => {
             out.func_return();
         },
         Command::Call{ funcname, nargs } => {
-            out.func_call(funcname, *nargs);
+            out.func_call(funcname, nargs);
         }
     }
     //out.write(&format!("// </{:?}>", command));
@@ -114,7 +120,7 @@ fn translate_vm_source(out: &mut AsmWriter, source: &str) {
         .filter(|line| !line.is_empty())    // filter empty line
         .map(line_to_command)
         .collect::<Vec<_>>();
-    for command in &commands {
+    for command in commands {
         translate_command(out, command);
     }
 }

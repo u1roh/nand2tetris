@@ -1,4 +1,43 @@
 
+#[derive(Debug)]
+pub enum UnaryOp { Neg, Not }
+
+#[derive(Debug)]
+pub enum BinaryOp { Add, Sub, And, Or }
+
+#[derive(Debug)]
+pub enum Condition { Eq, Gt, Lt }
+
+/*
+        Command::UnaryOp(name) => {
+            let op = match *name {
+                "neg" => '-',
+                "not" => '!',
+                _ => panic!("unknown unary operation: {}", name)
+            };
+            out.unary_op(op);
+            out.push();
+        },
+        Command::BinaryOp(name) => {
+            let op = match *name {
+                "add" => '+',
+                "sub" => '-',
+                "and" => '&',
+                "or"  => '|',
+                _ => panic!("unknown binary operation: {}", name)
+            };
+            out.binary_op(op);
+            out.push();
+        },
+        Command::LogicalOp(name) => {
+            let jmp = match *name {
+                "eq" => "JEQ",
+                "gt" => "JGT",
+                "lt" => "JLT",
+                _ => panic!("unknown logical operation: {}", name)
+            };
+            */
+
 /*
 const VM_TERMINAL_ASM: &str = "
 (INFINITE_LOOP)
@@ -57,7 +96,7 @@ impl<'a> AsmWriter<'a> {
     pub fn call_sys_init(&mut self) {
         self.set_ram("SP", 256);
         self.func_call("Sys.init", 0);
-        self.jump("TERMINAL");
+        self.goto("TERMINAL");
     }
     pub fn push(&mut self) {
         self.out.write_str(PUSH_ASM).unwrap();
@@ -65,29 +104,44 @@ impl<'a> AsmWriter<'a> {
     pub fn pop(&mut self) {
         self.out.write_str(POP_ASM).unwrap();
     }
-    pub fn jump(&mut self, label: &str) {
+    pub fn goto(&mut self, label: &str) {
         writeln!(self.out, "@{}\n0;JMP", label).unwrap();
     }
-    pub fn jump_if(&mut self, label: &str, jmp: &str) {
-        writeln!(self.out, "@{}\nD;{}", label, jmp).unwrap();
+    pub fn if_goto(&mut self, label: &str) {
+        writeln!(self.out, "@{}\nD;JNE", label).unwrap();
     }
-    pub fn unary_op(&mut self, op: char) {
+    pub fn unary_op(&mut self, op: UnaryOp) {
         self.pop();
+        let op = match op {
+            UnaryOp::Neg => '-',
+            UnaryOp::Not => '!'
+        };
         writeln!(self.out, "D={}D", op).unwrap();
     }
-    pub fn binary_op(&mut self, op: char) {
+    pub fn binary_op(&mut self, op: BinaryOp) {
         self.pop();
         writeln!(self.out, "@R13\nM=D").unwrap();
         self.pop();
+        let op = match op {
+            BinaryOp::Add => '+',
+            BinaryOp::Sub => '-',
+            BinaryOp::Or  => '|',
+            BinaryOp::And => '&',
+        };
         writeln!(self.out, "@R13\nD=D{}M", op).unwrap();
     }
-    pub fn logical_op(&mut self, jmp: &str) {
+    pub fn logical_op(&mut self, cond: Condition) {
         let if_true = self.new_unique_label("IF_TRUE");
         let if_end  = self.new_unique_label("IF_END");
-        self.binary_op('-');
-        self.jump_if(&if_true, jmp);
+        self.binary_op(BinaryOp::Sub);
+        let jmp = match cond {
+            Condition::Eq => "JEQ",
+            Condition::Gt => "JGT",
+            Condition::Lt => "JLT",
+        };
+        writeln!(self.out, "@{}\nD;{}", if_true, jmp).unwrap();
         self.out.write_str("D=0\n").unwrap();
-        self.jump(&if_end);
+        self.goto(&if_end);
         self.label(&if_true);
         self.out.write_str("D=-1\n").unwrap();
         self.label(&if_end);
