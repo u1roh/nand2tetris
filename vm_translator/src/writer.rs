@@ -9,36 +9,6 @@ pub enum BinaryOp { Add, Sub, And, Or }
 pub enum Condition { Eq, Gt, Lt }
 
 /*
-        Command::UnaryOp(name) => {
-            let op = match *name {
-                "neg" => '-',
-                "not" => '!',
-                _ => panic!("unknown unary operation: {}", name)
-            };
-            out.unary_op(op);
-            out.push();
-        },
-        Command::BinaryOp(name) => {
-            let op = match *name {
-                "add" => '+',
-                "sub" => '-',
-                "and" => '&',
-                "or"  => '|',
-                _ => panic!("unknown binary operation: {}", name)
-            };
-            out.binary_op(op);
-            out.push();
-        },
-        Command::LogicalOp(name) => {
-            let jmp = match *name {
-                "eq" => "JEQ",
-                "gt" => "JGT",
-                "lt" => "JLT",
-                _ => panic!("unknown logical operation: {}", name)
-            };
-            */
-
-/*
 const VM_TERMINAL_ASM: &str = "
 (INFINITE_LOOP)
 @INFINITE_LOOP
