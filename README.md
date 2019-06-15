@@ -1,6 +1,6 @@
 # NAND2Tetris in Rust
 
-いわゆる NAND2Tetris(https://www.nand2tetris.org/)「コンピュータシステムの理論と実装」をRustで実装したものです。といっても道半ばで止まっていますが…orz
+いわゆる NAND2Tetris(https://www.nand2tetris.org/ )「コンピュータシステムの理論と実装」をRustで実装したものです。といっても道半ばで止まっていますが…orz
 
 一番おもしろい（？）のは machine/ プロジェクトです。
 machine/given.rs で下記のように NAND と FlipFlop が定義されています。

@@ -9,4 +9,4 @@ machine = { path = "../machine" }
 asm = { path = "../asm" }
 vm_translator = { path = "../vm_translator" }
 gl = "*"
-glutin = "*"
+glutin = "0.17"
