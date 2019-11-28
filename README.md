@@ -46,3 +46,11 @@ impl Flipflop {
 この制約のもとで、NAND と FlipFlop のみを利用して ALU や RAM をシミュレートしています。ただひたすら、素子の出力を別の素子に繋ぎ、FlipFlop に clock信号を送るだけです。これを作ることで、コンピュータという壮大なピタゴラ装置の一端を垣間見ることができた気分になれます。
 
 ※ ただし `machine/src/blackbox.rs` には `ROM32K`、`Screen`、`Keyboard` といった外部機器をブラックボックスとしてシミュレートするためのものが用意されており、これらは「高級な」機能を利用して実装されています。
+
+* `machine/src/gate.rs` ... `not`, `and`, `xor` などといった論理ゲートを NAND から組み立てています。
+* `machine/src/adder.rs` ... 論理ゲートから16bit加算器を作ります。
+* `machine/src/alu.rs` ... 加算器と論理ゲートからALUを作ります。
+* `machine/src/ram.rs` ... FlipFlop を使ってレジスタを作り、レジスタを使ってRAMを作ります。
+* `machine/src/inst.rs` ... CPU の命令セットを定義しています。ここはコンピュータの動きそのものをシミュレートするコードではなく、生のマシン語ではあまりに可読性が悪いのでビット列の命令とアセンブリ言語的な命令を対応付けています。
+* `machine/src/cpu.rs` ... CPU を作ります。
+* `machine/src/lib.rs` ... CPU と RAM と、ブラックボックスの ROM や Screen、Keyboard をつなげてマシンを作ります。
